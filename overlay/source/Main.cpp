@@ -153,6 +153,7 @@ class EmuiiboGui : public tsl::Gui {
     private:
         tsl::elm::SmallListItem *amiibo_header;
         tsl::elm::DoubleSectionOverlayFrame *root_frame;
+        tsl::elm::NamedStepTrackBar *toggle_item = new tsl::elm::NamedStepTrackBar("\u22EF", { "Off", "On" });
         
     public:
         EmuiiboGui() : amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), MakeAvailableAmiibosText(), tsl::SectionsLayout::big_bottom, true)) {}
@@ -162,20 +163,11 @@ class EmuiiboGui : public tsl::Gui {
             auto bottom_list = new tsl::elm::List();
             
             if(g_emuiibo_init_ok) {
-                auto status = emu::GetEmulationStatus();
+                //auto status = emu::GetEmulationStatus();
 
-                auto *toggle_item = new tsl::elm::NamedStepTrackBar("\u22EF", { "Off", "On" });
+                //auto *toggle_item = new tsl::elm::NamedStepTrackBar("\u22EF", { "Off", "On" });
                 
-                u8 toggle_progress;
-                switch(status) {
-                    case emu::EmulationStatus::On:
-                        toggle_progress = 1;
-                        break;
-                    case emu::EmulationStatus::Off:
-                        toggle_progress = 0;
-                        break;
-                }
-                toggle_item->setProgress(toggle_progress);
+
 
                 toggle_item->setValueChangedListener([&](u8 progress) {
                     switch(progress) {
@@ -280,6 +272,14 @@ class EmuiiboGui : public tsl::Gui {
                         return true;
                     }
                 }
+                if(keys & KEY_R) {
+                    emu::SetEmulationStatus(emu::EmulationStatus::On);
+                    return true;
+                }
+                if(keys & KEY_L) {
+                    emu::SetEmulationStatus(emu::EmulationStatus::Off);
+                    return true;
+                }
                 return false;
             });
 
@@ -291,6 +291,16 @@ class EmuiiboGui : public tsl::Gui {
         virtual void update() override {
             amiibo_header->setText(MakeActiveAmiiboText());
             amiibo_header->setValue(MakeActiveAmiiboStatusText());
+            u8 toggle_progress;
+            switch(emu::GetEmulationStatus()) {
+                case emu::EmulationStatus::On:
+                    toggle_progress = 1;
+                    break;
+                case emu::EmulationStatus::Off:
+                    toggle_progress = 0;
+                    break;
+            }
+            toggle_item->setProgress(toggle_progress);
         }
 };
 
