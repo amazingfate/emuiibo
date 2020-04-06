@@ -1,18 +1,27 @@
 #pragma once
 #include <tesla.hpp>
 
+#define SECTION_SAME_SIZE(height) ((height - 73 - 80) / 2)
+#define SECTION_BIG_SIZE(height) (((height - 73 - 80) / 3) * 2)
+#define SECTION_SMALL_SIZE(height) ((height - 73 - 80) / 3)
+
 namespace tsl {
 
-    namespace elm {
+    enum class SectionsLayout{
+        same,           //both sections have the same height top 1/2 : bottom 1/2
+        big_top,        //top section is higher top 2/3 : bottom 1/3
+        big_bottom      //bottom section is higher top 1/3 : bottom 2/3
+    };
 
+    namespace elm {
         class BigCategoryHeader : public ListItem {
         public:
             BigCategoryHeader(const std::string &title, bool hasSeparator = false) : ListItem(title), m_hasSeparator(hasSeparator) {}
             virtual ~BigCategoryHeader() {}
 
             virtual void draw(gfx::Renderer *renderer) override {
-                renderer->drawRect(this->getX() - 2, this->getY() + 12 , 5, this->getHeight() - 12, a(tsl::style::color::ColorHeaderBar));
-                renderer->drawString(this->m_text.c_str(), false, this->getX() + 13, ELEMENT_BOTTOM_BOUND(this) - 12, 20, a(tsl::style::color::ColorText));
+                renderer->drawRect(this->getX() - 2, this->getY() + 12 , 5, this->getHeight() - 24, a(tsl::style::color::ColorHeaderBar));
+                renderer->drawString(this->m_text.c_str(), false, this->getX() + 13, ELEMENT_BOTTOM_BOUND(this) - 24, 20, a(tsl::style::color::ColorText));
 
                 if (this->m_hasSeparator)
                     renderer->drawRect(this->getX(), ELEMENT_BOTTOM_BOUND(this), this->getWidth(), 1, a(tsl::style::color::ColorFrame));
@@ -190,100 +199,161 @@ namespace tsl {
             u16 m_scrollAnimationCounter = 0;
         };
 
-        class CustomOverlayFrame : public Element {
+        class DoubleSectionOverlayFrame : public Element {
         public:
             /**
              * @brief Constructor
              * 
              * @param title Name of the Overlay drawn bolt at the top
              * @param subtitle Subtitle drawn bellow the title e.g version number
+             * @param hasSeparators draw separators, default false
              */
-            CustomOverlayFrame(const std::string& title, const std::string& subtitle) : Element(), m_title(title), m_subtitle(subtitle) {}
-            virtual ~CustomOverlayFrame() {
-                if (this->m_contentElement != nullptr)
-                    delete this->m_contentElement;
-                if (this->m_headerElement != nullptr)
-                    delete this->m_headerElement;
+
+            DoubleSectionOverlayFrame(const std::string& title, const std::string& subtitle, const SectionsLayout& layout = SectionsLayout::same ,const bool& hasSeparators = false) : Element(), m_title(title), m_subtitle(subtitle), m_layout(layout), m_hasSeparators(hasSeparators) {}
+            virtual ~DoubleSectionOverlayFrame() {
+                if (this->m_topSection != nullptr)
+                    delete this->m_topSection;
+                if (this->m_bottomSection != nullptr)
+                    delete this->m_bottomSection;
             }
 
             virtual void draw(gfx::Renderer *renderer) override {
                 renderer->fillScreen(a(tsl::style::color::ColorFrameBackground));
                 renderer->drawRect(tsl::cfg::FramebufferWidth - 1, 0, 1, tsl::cfg::FramebufferHeight, a(0xF222));
 
-                renderer->drawString(this->m_title.c_str(), false, 20, 50, 25, a(tsl::style::color::ColorText));
+                renderer->drawString(this->m_title.c_str(), false, 20, 50, 30, a(tsl::style::color::ColorText));
                 renderer->drawString(this->m_subtitle.c_str(), false, 20, 70, 15, a(tsl::style::color::ColorDescription));
 
-                //renderer->drawRect(15, (tsl::cfg::FramebufferHeight - 73) / 3, tsl::cfg::FramebufferWidth - 30, 1, a(tsl::style::color::ColorText));
+                if(m_hasSeparators){
+                    renderer->drawRect(15, 79, tsl::cfg::FramebufferWidth - 30, 1, a(tsl::style::color::ColorText));
+                    switch(m_layout){
+                        case(SectionsLayout::same):
+                            renderer->drawRect(15, 80 + SECTION_SAME_SIZE(tsl::cfg::FramebufferHeight), tsl::cfg::FramebufferWidth - 30, 1, a(tsl::style::color::ColorText));
+                            break;
+                        case(SectionsLayout::big_top):
+                            renderer->drawRect(15, 80 + SECTION_BIG_SIZE(tsl::cfg::FramebufferHeight), tsl::cfg::FramebufferWidth - 30, 1, a(tsl::style::color::ColorText));
+                            break;
+                        case(SectionsLayout::big_bottom):
+                            renderer->drawRect(15, 80 + SECTION_SMALL_SIZE(tsl::cfg::FramebufferHeight), tsl::cfg::FramebufferWidth - 30, 1, a(tsl::style::color::ColorText));
+                            break;
+                    }
+                }
+
                 renderer->drawRect(15, tsl::cfg::FramebufferHeight - 73, tsl::cfg::FramebufferWidth - 30, 1, a(tsl::style::color::ColorText));
 
                 renderer->drawString("\uE0E1  Back     \uE0E0  OK", false, 30, 693, 23, a(tsl::style::color::ColorText));
 
-                if (this->m_contentElement != nullptr)
-                    this->m_contentElement->frame(renderer);
-                if (this->m_headerElement != nullptr)
-                    this->m_headerElement->frame(renderer);
+                if (this->m_topSection != nullptr)
+                    this->m_topSection->frame(renderer);
+                if (this->m_bottomSection != nullptr)
+                    this->m_bottomSection->frame(renderer);
             }
 
             virtual void layout(u16 parentX, u16 parentY, u16 parentWidth, u16 parentHeight) override {
                 this->setBoundaries(parentX, parentY, parentWidth, parentHeight);
 
-                if (this->m_headerElement != nullptr) {
-                    this->m_headerElement->setBoundaries(15, parentY + 80, parentWidth - 30, ((parentHeight - 73 - 80) / 3));
-                    this->m_headerElement->invalidate();
+                if (this->m_topSection != nullptr) {
+                    switch(m_layout){
+                        case(SectionsLayout::same):
+                            this->m_topSection->setBoundaries(parentX + 35, parentY + 80, parentWidth - 85, SECTION_SAME_SIZE(parentHeight));
+                            break;
+                        case(SectionsLayout::big_top):
+                            this->m_topSection->setBoundaries(parentX + 35, parentY + 80, parentWidth - 85, SECTION_BIG_SIZE(parentHeight));
+                            break;
+                        case(SectionsLayout::big_bottom):
+                            this->m_topSection->setBoundaries(parentX + 35, parentY + 80, parentWidth - 85, SECTION_SMALL_SIZE(parentHeight));
+                            break;
+                    }
+                    this->m_topSection->invalidate();
                 }
-                if (this->m_contentElement != nullptr) {
-                    this->m_contentElement->setBoundaries(parentX + 35, parentY + 80 + this->m_headerElement->getHeight(), parentWidth - 85, parentHeight - this->m_headerElement->getHeight() - 73 - 80);
-                    this->m_contentElement->invalidate();
+                if (this->m_bottomSection != nullptr) {
+                    this->m_bottomSection->setBoundaries(parentX + 35, parentY + 80 + this->m_topSection->getHeight() + 5, parentWidth - 85, parentHeight - this->m_topSection->getHeight() - 73 - 80 - 5);
+                    this->m_bottomSection->invalidate();
                 }
             }
 
             virtual Element* requestFocus(Element *oldFocus, FocusDirection direction) override {
-                if (this->m_contentElement != nullptr)
-                    return this->m_contentElement->requestFocus(oldFocus, direction);
-                else
-                    return nullptr;
+                Element *newFocus = nullptr;
+                if (this->m_topSection == nullptr && this->m_bottomSection == nullptr) {
+                    return newFocus;
+                } else {
+                    if (direction == FocusDirection::Down) {
+                        if (this->m_topSection != nullptr && oldFocus == this->m_topSection->requestFocus(oldFocus, direction)) {
+                            if(this->m_bottomSection != nullptr)
+                                newFocus = this->m_bottomSection->requestFocus(oldFocus, direction);
+                        } else {
+                            if(this->m_topSection != nullptr)
+                                newFocus = this->m_topSection->requestFocus(oldFocus, direction);
+                        }
+                    }
+                    if (direction == FocusDirection::Up) {
+                        if (this->m_bottomSection != nullptr && oldFocus == this->m_bottomSection->requestFocus(oldFocus, direction)) {
+                            if(this->m_topSection != nullptr)
+                                newFocus = this->m_topSection->requestFocus(oldFocus, direction);
+                        } else {
+                            if(this->m_bottomSection != nullptr)
+                                newFocus = this->m_bottomSection->requestFocus(oldFocus, direction);
+                        }
+                    }
+                    if (direction == FocusDirection::None) {
+                        if(this->m_bottomSection != nullptr)
+                            newFocus = this->m_bottomSection->requestFocus(oldFocus, direction);
+                    }
+                }
+
+                return newFocus;
+                
             }
 
             virtual bool onTouch(TouchEvent event, s32 currX, s32 currY, s32 prevX, s32 prevY, s32 initialX, s32 initialY) {
                 // Discard touches outside bounds
-                if (currX < ELEMENT_LEFT_BOUND(this->m_contentElement) || currX > ELEMENT_RIGHT_BOUND(this->m_contentElement))
-                    return false;
-                if (currY < ELEMENT_TOP_BOUND(this->m_contentElement) || currY > ELEMENT_BOTTOM_BOUND(this->m_contentElement))
-                    return false;
+                if (currX > ELEMENT_LEFT_BOUND(this->m_bottomSection) && currX < ELEMENT_RIGHT_BOUND(this->m_bottomSection) &&
+                    currY > ELEMENT_TOP_BOUND(this->m_bottomSection) && currY < ELEMENT_BOTTOM_BOUND(this->m_bottomSection)) {
+                    if (this->m_bottomSection != nullptr)
+                        return this->m_bottomSection->onTouch(event, currX, currY, prevX, prevY, initialX, initialY);
 
-                if (this->m_contentElement != nullptr)
-                    return this->m_contentElement->onTouch(event, currX, currY, prevX, prevY, initialX, initialY);
-                else return false;
-            }
+                } else if (currX > ELEMENT_LEFT_BOUND(this->m_topSection) && currY < ELEMENT_RIGHT_BOUND(this->m_topSection) &&
+                    currY > ELEMENT_TOP_BOUND(this->m_topSection) && currY < ELEMENT_BOTTOM_BOUND(this->m_topSection)) {
+                    if (this->m_topSection != nullptr)
+                        return this->m_topSection->onTouch(event, currX, currY, prevX, prevY, initialX, initialY);
+                }
+                return false;
+            }   
 
             /**
-             * @brief Sets the content of the frame
+             * @brief Sets the content of the top section
              * 
              * @param content Element
              */
-            virtual void setContent(Element *content) final {
-                if (this->m_contentElement != nullptr)
-                    delete this->m_contentElement;
+            virtual void setTopSection(Element *content) final {
+                if (this->m_topSection != nullptr)
+                    delete this->m_topSection;
 
-                this->m_contentElement = content;
+                this->m_topSection = content;
 
                 if (content != nullptr) {
-                    this->m_contentElement->setParent(this);
+                    this->m_topSection->setParent(this);
+                    this->invalidate();
+                }
+            }
+            
+            /**
+             * @brief Sets the content of the bottom section
+             * 
+             * @param content Element
+             */
+            virtual void setBottomSection(Element *content) final {
+                if (this->m_bottomSection != nullptr)
+                    delete this->m_bottomSection;
+
+                this->m_bottomSection = content;
+
+                if (content != nullptr) {
+                    this->m_bottomSection->setParent(this);
                     this->invalidate();
                 }
             }
 
-            virtual void setHeader(Element *header) final {
-                if (this->m_headerElement != nullptr)
-                    delete this->m_headerElement;
-
-                this->m_headerElement = header;
-
-                if (header != nullptr) {
-                    this->m_headerElement->setParent(this);
-                    this->invalidate();
-                }
-            }
 
             /**
              * @brief Changes the title of the menu
@@ -304,11 +374,12 @@ namespace tsl {
             }
 
         protected:
-            Element *m_contentElement = nullptr;
-            Element *m_headerElement = nullptr;
+            Element *m_topSection = nullptr;
+            Element *m_bottomSection = nullptr;
             std::string m_title, m_subtitle;
+            SectionsLayout m_layout;
+            bool m_hasSeparators;
         };
-
     }
 
 }
