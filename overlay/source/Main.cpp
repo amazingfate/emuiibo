@@ -260,6 +260,29 @@ class EmuiiboGui : public tsl::Gui {
                 top_list->addItem(new tsl::elm::BigCategoryHeader(MakeStatusText(), true));
             }
 
+            root_frame->setClickListener([&](u64 keys) { 
+                if(keys & KEY_RSTICK) {
+                    if(g_active_amiibo.IsValid()) {
+                        // User selected the active amiibo, so let's change connection then
+                        auto status = emu::GetActiveVirtualAmiiboStatus();
+                        switch(status) {
+                            case emu::VirtualAmiiboStatus::Connected: {
+                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
+                                break;
+                            }
+                            case emu::VirtualAmiiboStatus::Disconnected: {
+                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
+                                break;
+                            }
+                            default:
+                                break;
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            });
+
             root_frame->setTopSection(top_list);
             root_frame->setBottomSection(bottom_list);
             return root_frame;
