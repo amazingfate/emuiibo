@@ -290,7 +290,7 @@ class EmuiiboGui : public tsl::Gui {
 
         virtual void update() override {
             amiibo_header->setText(MakeActiveAmiiboText());
-            amiibo_header->setValue(MakeActiveAmiiboStatusText());
+            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected?tsl::style::color::ColorWarning:tsl::style::color::ColorHighlight);
             u8 toggle_progress;
             switch(emu::GetEmulationStatus()) {
                 case emu::EmulationStatus::On:
