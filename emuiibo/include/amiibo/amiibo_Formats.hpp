@@ -3,6 +3,7 @@
 #include <emu_Types.hpp>
 #include <amiibo/amiibo_Areas.hpp>
 #include <ipc/mii/mii_Utils.hpp>
+#include <ctime>
 
 namespace amiibo {
 
@@ -55,6 +56,16 @@ namespace amiibo {
 
             inline bool HasKey(JSON &json, const std::string &key) {
                 return json.count(key);
+            }
+
+            inline Date MakeCurrentDate() {
+                Date cur_date = {};
+                auto cur_time = std::time(nullptr);
+                auto cur_time_local = std::localtime(&cur_time);
+                cur_date.year = cur_time_local->tm_year + 1900;
+                cur_date.month = cur_time_local->tm_mon + 1;
+                cur_date.day = cur_time_local->tm_mday;
+                return cur_date;
             }
 
         public:
@@ -127,11 +138,9 @@ namespace amiibo {
 
     // Old formats supported by emuiibo (how are they named here):
     // - Bin (raw binaries, always supported but mainly used in emuiibo 0.1)
-    // - V2 (format used in emuiibo 0.2.x)
     // - V3 (format used in emuiibo 0.3.x and 0.4)
 
     class VirtualBinAmiibo;
-    class VirtualAmiiboV2;
     class VirtualAmiiboV3;
 
     class VirtualAmiibo : public IVirtualAmiiboBase {
@@ -275,10 +284,31 @@ namespace amiibo {
                 // Manually indicate the amiibo is valid
                 amiibo.path = old_amiibo.GetPath();
                 amiibo.valid = true;
+                auto areas_path = fs::Concat(old_amiibo.GetPath(), "areas");
+                const bool has_areas = fs::IsDirectory(areas_path);
+                if(has_areas) {
+                    // Move areas to a temp location
+                    fs::RecreateDirectory(consts::TempConversionAreasDir);
+                    FS_FOR(areas_path, entry, area_path, {
+                        if(fs::MatchesExtension(area_path, "bin")) {
+                            auto out_path = fs::Concat(consts::TempConversionAreasDir, entry);
+                            fs::CopyFile(area_path, out_path);
+                        }
+                    });
+                }
                 old_amiibo.FullyRemove();
                 amiibo.Save();
                 // After creating the new amiibo's layout, save the mii
                 fs::Save(amiibo.GetMiiCharInfoPath(), charinfo);
+                if(has_areas) {
+                    fs::CreateDirectory(areas_path);
+                    // Move temp areas back to the new amiibo's dir
+                    FS_FOR(consts::TempConversionAreasDir, entry, area_path, {
+                        auto out_path = fs::Concat(areas_path, entry);
+                        fs::CopyFile(area_path, out_path);
+                    });
+                    fs::RecreateDirectory(consts::TempConversionAreasDir);
+                }
                 return true;
             }
 
@@ -290,10 +320,6 @@ namespace amiibo {
                 if constexpr(std::is_same_v<V, VirtualBinAmiibo>) {
                     // Just check if it's a file and ends in .bin :P
                     return fs::IsFile(amiibo_path) && fs::MatchesExtension(amiibo_path, "bin");
-                }
-                else if constexpr(std::is_same_v<V, VirtualAmiiboV2>) {
-                    // The V2 format was made of amiibo.json, amiibo.bin and mii.dat files
-                    return fs::IsDirectory(amiibo_path) && fs::IsFile(fs::Concat(amiibo_path, "amiibo.json")) && fs::IsFile(fs::Concat(amiibo_path, "amiibo.bin")) && fs::IsFile(fs::Concat(amiibo_path, "mii.dat"));
                 }
                 else if constexpr(std::is_same_v<V, VirtualAmiiboV3>) {
                     // The V3 format was made of tag.json, model.json, common.json and register.json files
@@ -394,53 +420,6 @@ namespace amiibo {
 
     };
 
-    // 0.2.x virtual amiibo format
-
-    class VirtualAmiiboV2 : public IVirtualAmiiboBase {
-
-        // TODO
-
-        public:
-            // Stubbed
-            using IVirtualAmiiboBase::IVirtualAmiiboBase;
-
-            std::string GetName() override {
-                return "";
-            }
-
-            AmiiboUuidInfo GetUuidInfo() override {
-                return {};
-            }
-
-            AmiiboId GetAmiiboId() override {
-                return {};
-            }
-
-            std::string GetMiiCharInfoFileName() override {
-                return "";
-            }
-
-            Date GetFirstWriteDate() override {
-                return {};
-            }
-
-            Date GetLastWriteDate() override {
-                return {};
-            }
-
-            u16 GetWriteCounter() override {
-                return 0;
-            }
-
-            u32 GetVersion() override {
-                return 0;
-            }
-
-            void FullyRemove() override {
-            }
-
-    };
-
     // Raw binary, 0.1 virtual amiibo format
 
     struct RawAmiibo {
@@ -455,46 +434,32 @@ namespace amiibo {
 
     class VirtualBinAmiibo : public IVirtualAmiiboBase {
 
-        // TODO
+        private:
+            RawAmiibo raw_data;
+            Date base_date;
 
         public:
-            // Stubbed
-            using IVirtualAmiiboBase::IVirtualAmiiboBase;
+            VirtualBinAmiibo() : IVirtualAmiiboBase() {}
+            
+            VirtualBinAmiibo(const std::string &path);
 
-            std::string GetName() override {
-                return "";
-            }
+            std::string GetName() override;
 
-            AmiiboUuidInfo GetUuidInfo() override {
-                return {};
-            }
+            AmiiboUuidInfo GetUuidInfo() override;
 
-            AmiiboId GetAmiiboId() override {
-                return {};
-            }
+            AmiiboId GetAmiiboId() override;
 
-            std::string GetMiiCharInfoFileName() override {
-                return "";
-            }
+            std::string GetMiiCharInfoFileName() override;
 
-            Date GetFirstWriteDate() override {
-                return {};
-            }
+            Date GetFirstWriteDate() override;
 
-            Date GetLastWriteDate() override {
-                return {};
-            }
+            Date GetLastWriteDate() override;
 
-            u16 GetWriteCounter() override {
-                return 0;
-            }
+            u16 GetWriteCounter() override;
 
-            u32 GetVersion() override {
-                return 0;
-            }
+            u32 GetVersion() override;
 
-            void FullyRemove() override {
-            }
+            void FullyRemove() override;
 
     };
 

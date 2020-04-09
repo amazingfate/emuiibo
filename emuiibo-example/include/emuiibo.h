@@ -86,6 +86,8 @@ bool emuiiboIsAvailable();
 Result emuiiboInitialize();
 void emuiiboExit();
 
+EmuiiboVersion emuiiboGetVersion();
+
 EmuiiboEmulationStatus emuiiboGetEmulationStatus();
 void emuiiboSetEmulationStatus(EmuiiboEmulationStatus status);
 
@@ -99,7 +101,8 @@ void emuiiboSetActiveVirtualAmiiboStatus(EmuiiboVirtualAmiiboStatus status);
 Result emuiiboReadNextAvailableVirtualAmiibo(EmuiiboVirtualAmiiboId *out_amiibo_id, EmuiiboVirtualAmiiboData *out_amiibo_data);
 void emuiiboResetAvailableVirtualAmiiboIterator();
 
-EmuiiboVersion emuiiboGetVersion();
+void emuiiboIsApplicationIdIntercepted(u64 app_id, bool *out_intercepted);
+void emuiiboIsCurrentApplicationIdIntercepted(bool *out_intercepted);
 
 #ifdef __cplusplus
 }

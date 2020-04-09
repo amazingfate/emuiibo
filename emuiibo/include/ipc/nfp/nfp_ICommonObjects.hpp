@@ -67,6 +67,7 @@ namespace ipc::nfp {
             ams::os::SystemEvent event_deactivate;
             ams::os::SystemEvent event_availability_change;
             Service *forward_service;
+            u64 client_app_id;
 
             Lock amiibo_update_lock;
             sys::VirtualAmiiboStatus last_notified_status;
@@ -96,8 +97,6 @@ namespace ipc::nfp {
                 }
             }
 
-            // TODO: check for proper states in commands
-
             template<typename T, typename ...Ss>
             inline constexpr bool IsStateAny(Ss &&...states) {
                 static_assert(std::is_same_v<T, NfpState> || std::is_same_v<T, NfpDeviceState>, "Invalid type");
@@ -116,7 +115,7 @@ namespace ipc::nfp {
             }
 
         public:
-            ICommonInterface(Service *fwd);
+            ICommonInterface(Service *fwd, u64 app_id);
             ~ICommonInterface();
 
             void HandleVirtualAmiiboStatus(sys::VirtualAmiiboStatus status);
@@ -165,16 +164,19 @@ namespace ipc::nfp {
                 Service outsrv; \
                 R_TRY(ICommonManager::CreateForwardInterface(this->forward_service.get(), &outsrv)); \
                 const ams::sf::cmif::DomainObjectId object_id { serviceGetObjectId(&outsrv) }; \
-                auto intf = std::make_shared<type>(new Service(outsrv)); \
+                auto intf = std::make_shared<type>(new Service(outsrv), this->client_app_id); \
                 out.SetValue(std::move(intf), object_id); \
                 return ams::ResultSuccess(); \
             }
 
     class ICommonManager : public ams::sf::IMitmServiceObject {
 
+        protected:
+            u64 client_app_id;
+
         public:
-            ICommonManager(std::shared_ptr<::Service> &&s, const ams::sm::MitmProcessInfo &c) : IMitmServiceObject(std::forward<std::shared_ptr<::Service>>(s), c) {
-                EMU_LOG_FMT("Accessed manager with application ID 0x" << std::hex << std::setw(16) << std::setfill('0') << std::uppercase << c.program_id.value)
+            ICommonManager(std::shared_ptr<::Service> &&s, const ams::sm::MitmProcessInfo &c) : IMitmServiceObject(std::forward<std::shared_ptr<::Service>>(s), c), client_app_id(c.program_id.value) {
+                EMU_LOG_FMT("Accessed manager with application ID 0x" << std::hex << std::setw(16) << std::setfill('0') << std::uppercase << this->client_app_id)
             }
 
             static bool ShouldMitm(const ams::sm::MitmProcessInfo &client_info) {

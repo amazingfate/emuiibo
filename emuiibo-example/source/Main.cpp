@@ -114,6 +114,15 @@ void PrintMainMenu() {
         }
     }
 
+    bool cur_app_intercepted = false;
+    emuiiboIsCurrentApplicationIdIntercepted(&cur_app_intercepted);
+    if(cur_app_intercepted) {
+        console("The currently suspended/opened game is intercepted by emuiibo.")
+    }
+    else {
+        console("The currently suspended/opened game is not intercepted by emuiibo.")
+    }
+
     EmuiiboVirtualAmiiboId active_amiibo_id = {};
     EmuiiboVirtualAmiiboData active_amiibo_data = {};
     if(R_SUCCEEDED(emuiiboGetActiveVirtualAmiibo(&active_amiibo_id, &active_amiibo_data))) {

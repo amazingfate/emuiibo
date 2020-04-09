@@ -168,8 +168,13 @@ namespace emutool
                 amiibo.Id.Series = byte.Parse(series_str, System.Globalization.NumberStyles.HexNumber);
 
                 // Generate a random UUID
+                // In most UUIDs, the first 7 bytes are random, while the last three are zeroed
+                // Since some games, like Splatoon 2, seem to check if these are zeroed, we'll follow this pattern and zero last 3 bytes
                 Random rnd = new Random();
                 rnd.NextBytes(amiibo.Uuid);
+                amiibo.Uuid[7] = 0;
+                amiibo.Uuid[8] = 0;
+                amiibo.Uuid[9] = 0;
             }
             catch(Exception ex)
             {

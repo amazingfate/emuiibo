@@ -24,7 +24,7 @@ namespace ipc::nfp::user
             bool area_opened;
 
         public:
-            IUser(Service *fwd) : ICommonInterface(fwd), current_opened_area_id(0), area_opened(false) {}
+            IUser(Service *fwd, u64 app_id) : ICommonInterface(fwd, app_id), current_opened_area_id(0), area_opened(false) {}
 
         protected:
             ams::Result OpenApplicationArea(DeviceHandle handle, amiibo::AreaId id, ams::sf::Out<u32> out_npad_id);

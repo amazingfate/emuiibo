@@ -9,5 +9,6 @@ namespace consts {
     static inline const std::string LogFilePath = EmuDir + "/emuiibo.log";
     static inline const std::string AmiiboDir = EmuDir + "/amiibo";
     static inline const std::string DumpedMiisDir = EmuDir + "/miis";
+    static inline const std::string TempConversionAreasDir = EmuDir + "/temp_areas";
 
 }

@@ -1,5 +1,4 @@
 #include <amiibo/amiibo_Formats.hpp>
-#include <ctime>
 #include <algorithm>
 
 namespace amiibo {
@@ -122,12 +121,7 @@ namespace amiibo {
         }
         this->SetWriteCounter(counter);
 
-        Date cur_date = {};
-        auto cur_time = std::time(nullptr);
-        auto cur_time_local = std::localtime(&cur_time);
-        cur_date.year = cur_time_local->tm_year + 1900;
-        cur_date.month = cur_time_local->tm_mon + 1;
-        cur_date.day = cur_time_local->tm_mday;
+        Date cur_date = this->MakeCurrentDate();
         this->SetLastWriteDate(cur_date);
 
         this->Save();
@@ -263,6 +257,57 @@ namespace amiibo {
 
     void VirtualAmiiboV3::FullyRemove() {
         fs::DeleteDirectory(this->path);
+    }
+
+    VirtualBinAmiibo::VirtualBinAmiibo(const std::string &path) : IVirtualAmiiboBase(path) {
+        this->raw_data = fs::Read<RawAmiibo>(this->path);
+        this->base_date = this->MakeCurrentDate();
+    }
+
+    std::string VirtualBinAmiibo::GetName() {
+        return fs::RemoveExtension(fs::GetBaseName(this->path));
+    }
+
+    AmiiboUuidInfo VirtualBinAmiibo::GetUuidInfo() {
+        AmiiboUuidInfo info = {};
+        info.random_uuid = false;
+        memcpy(info.uuid, this->raw_data.uuid, 10);
+        return info;
+    }
+
+    AmiiboId VirtualBinAmiibo::GetAmiiboId() {
+        u8 id_array[8] = {0};
+        memcpy(id_array, this->raw_data.amiibo_id, 8);
+        auto old_id = *(OldAmiiboId*)id_array;
+        // Reverse model number field (BE)
+        old_id.model_number = __builtin_bswap16(old_id.model_number);
+        
+        auto id = AmiiboId::FromOldAmiiboId(old_id);
+        return id;
+    }
+
+    std::string VirtualBinAmiibo::GetMiiCharInfoFileName() {
+        return "";
+    }
+
+    Date VirtualBinAmiibo::GetFirstWriteDate() {
+        return this->base_date;
+    }
+
+    Date VirtualBinAmiibo::GetLastWriteDate() {
+        return this->base_date;
+    }
+
+    u16 VirtualBinAmiibo::GetWriteCounter() {
+        return 0;
+    }
+
+    u32 VirtualBinAmiibo::GetVersion() {
+        return 0;
+    }
+
+    void VirtualBinAmiibo::FullyRemove() {
+        fs::DeleteFile(this->path);
     }
 
 }

@@ -35,10 +35,14 @@ extern "C" {
         __libnx_init_time();
         EMU_R_ASSERT(hidInitialize());
         EMU_R_ASSERT(ipc::mii::Initialize());
+        EMU_R_ASSERT(pmdmntInitialize());
+        EMU_R_ASSERT(pminfoInitialize());
         ams::hos::SetVersionForLibnx();
     }
 
     void __appExit(void) {
+        pminfoExit();
+        pmdmntExit();
         ipc::mii::Finalize();
         timeExit();
         hidExit();

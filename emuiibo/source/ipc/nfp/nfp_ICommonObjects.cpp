@@ -14,7 +14,8 @@ namespace ipc::nfp {
         }
     }
 
-    ICommonInterface::ICommonInterface(Service *fwd) : state(NfpState_NonInitialized), device_state(NfpDeviceState_Unavailable), forward_service(fwd), should_exit_thread(false) {
+    ICommonInterface::ICommonInterface(Service *fwd, u64 app_id) : state(NfpState_NonInitialized), device_state(NfpDeviceState_Unavailable), forward_service(fwd), client_app_id(app_id), should_exit_thread(false) {
+        sys::RegisterInterceptedApplicationId(this->client_app_id);
         this->event_activate.InitializeAsInterProcessEvent();
         this->event_deactivate.InitializeAsInterProcessEvent();
         this->event_availability_change.InitializeAsInterProcessEvent();
@@ -25,6 +26,7 @@ namespace ipc::nfp {
     ICommonInterface::~ICommonInterface() {
         serviceClose(this->forward_service);
         delete this->forward_service;
+        sys::UnregisterInterceptedApplicationId(this->client_app_id);
         this->NotifyThreadExitAndWait();
     }
 

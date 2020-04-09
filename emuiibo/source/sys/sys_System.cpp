@@ -17,11 +17,8 @@ namespace sys {
                 // Process and convert outdated virtual amiibo formats
                 if(amiibo::VirtualAmiibo::IsValidVirtualAmiibo<amiibo::VirtualBinAmiibo>(path)) {
                     EMU_LOG_FMT("Converting raw bin at '" << path << "'...")
-                    // TODO: process raw bin files
-                }
-                else if(amiibo::VirtualAmiibo::IsValidVirtualAmiibo<amiibo::VirtualAmiiboV2>(path)) {
-                    EMU_LOG_FMT("Converting V2 (0.2.x) virtual amiibo at '" << path << "'...")
-                    // TODO: process V2 amiibos
+                    auto ret = amiibo::VirtualAmiibo::ConvertVirtualAmiibo<amiibo::VirtualBinAmiibo>(path);
+                    EMU_LOG_FMT("Conversion succeeded? " << std::boolalpha << ret << "...")
                 }
                 else if(amiibo::VirtualAmiibo::IsValidVirtualAmiibo<amiibo::VirtualAmiiboV3>(path)) {
                     EMU_LOG_FMT("Converting V3 (0.3.x/0.4) virtual amiibo at '" << path << "'...")

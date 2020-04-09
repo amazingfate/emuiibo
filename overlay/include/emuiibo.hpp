@@ -63,6 +63,8 @@ namespace emu {
     Result Initialize();
     void Exit();
 
+    Version GetVersion();
+
     EmulationStatus GetEmulationStatus();
     void SetEmulationStatus(EmulationStatus status);
 
@@ -76,6 +78,7 @@ namespace emu {
     Result ReadNextAvailableVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data);
     void ResetAvailableVirtualAmiiboIterator();
 
-    Version GetVersion();
+    void IsApplicationIdIntercepted(u64 app_id, bool *out_intercepted);
+    void IsCurrentApplicationIdIntercepted(bool *out_intercepted);
 
 }

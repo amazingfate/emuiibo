@@ -3,6 +3,7 @@
 #include <emu_Types.hpp>
 #include <iomanip>
 #include <sys/stat.h>
+#include <dirent.h>
 
 namespace fs {
 
@@ -31,6 +32,14 @@ namespace fs {
 
     inline bool MatchesExtension(const std::string &path, const std::string &ext) {
         return path.substr(path.find_last_of(".") + 1) == ext;
+    }
+
+    inline std::string GetBaseName(const std::string &path) {
+        return path.substr(path.find_last_of("/") + 1);
+    }
+
+    inline std::string RemoveExtension(const std::string &path) {
+        return path.substr(0, path.find_last_of("."));
     }
 
     inline void DeleteFile(const std::string &path) {
@@ -113,10 +122,44 @@ namespace fs {
         return t;
     }
 
+    inline void CopyFile(const std::string &in_path, const std::string &out_path) {
+        auto fsize = GetFileSize(in_path);
+        auto inf = fopen(in_path.c_str(), "rb");
+        if(inf) {
+            auto outf = fopen(out_path.c_str(), "wb");
+            if(outf) {
+                if(fsize > 0) {
+                    auto buf = new u8[fsize]();
+                    fread(buf, 1, fsize, inf);
+                    fwrite(buf, 1, fsize, outf);
+                    delete[] buf;
+                }
+                fclose(outf);
+            }
+            fclose(inf);
+        }
+    }
+
     inline void EnsureEmuiiboDirectories() {
         CreateDirectory(consts::EmuDir);
         CreateDirectory(consts::AmiiboDir);
         CreateDirectory(consts::DumpedMiisDir);
+        CreateDirectory(consts::TempConversionAreasDir);
+    }
+
+    #define FS_FOR(path, entry_v, path_v, ...) { \
+        auto dir = opendir(path.c_str()); \
+        if(dir) { \
+            while(true) { \
+                auto dt = readdir(dir); \
+                if(dt == nullptr) { \
+                    break; \
+                } \
+                std::string entry_v = dt->d_name; \
+                auto path_v = fs::Concat(path, entry_v); \
+                __VA_ARGS__ \
+            } \
+        } \
     }
 
 }

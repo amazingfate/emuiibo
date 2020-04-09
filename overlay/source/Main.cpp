@@ -8,12 +8,24 @@ namespace {
     bool g_emuiibo_init_ok = false;
     //bool g_in_second_menu = false;
     bool g_active_amiibo_valid = false;
+    bool g_current_app_intercepted = false;
     emu::VirtualAmiiboId g_active_amiibo_id;
     emu::VirtualAmiiboData g_active_amiibo_data;
     u32 g_virtual_amiibo_count = 0;
 
     inline void UpdateActiveAmiibo() {
         g_active_amiibo_valid = R_SUCCEEDED(emu::GetActiveVirtualAmiibo(&g_active_amiibo_id, &g_active_amiibo_data));
+    }
+
+    // Returns true if the value changed
+    inline bool UpdateCurrentApplicationIntercepted() {
+        bool ret = false;
+        emu::IsCurrentApplicationIdIntercepted(&ret);
+        if(ret != g_current_app_intercepted) {
+            g_current_app_intercepted = ret;
+            return true;
+        }
+        return false;
     }
 
     inline std::string MakeAvailableAmiibosText() {
@@ -37,13 +49,39 @@ namespace {
 
     inline std::string MakeStatusText() {
         if(!g_emuiibo_init_ok) {
-            return "Unable to access emuiibo...";
+            return "emuiibo was not accessed.";
         }
         std::string msg = "Emulation: ";
         auto e_status = emu::GetEmulationStatus();
         switch(e_status) {
             case emu::EmulationStatus::On: {
-                msg += "on";
+                msg += "on\n";
+                auto v_status = emu::GetActiveVirtualAmiiboStatus();
+                switch(v_status) {
+                    case emu::VirtualAmiiboStatus::Invalid: {
+                        msg += "No active virtual amiibo.";
+                        break;
+                    }
+                    case emu::VirtualAmiiboStatus::Connected: {
+                        msg += "Virtual amiibo: ";
+                        msg += g_active_amiibo_data.name;
+                        msg += " (connected - select to disconnect)";
+                        break;
+                    }
+                    case emu::VirtualAmiiboStatus::Disconnected: {
+                        msg += "Virtual amiibo: ";
+                        msg += g_active_amiibo_data.name;
+                        msg += " (disconnected - select to connect)";
+                        break;
+                    }
+                }
+                msg += "\n";
+                if(g_current_app_intercepted) {
+                    msg += "Current game is being intercepted by emuiibo.";
+                }
+                else {
+                    msg += "Current game is not being intercepted.";
+                }
                 break;
             }
             case emu::EmulationStatus::Off: {
@@ -152,6 +190,12 @@ class AmiibosList : public tsl::Gui {
             root_frame->setHeader(header_list);
             root_frame->setContent(list);
             return root_frame;
+        }
+
+        virtual void update() override {
+            if(UpdateCurrentApplicationIntercepted()) {
+                root_frame->setSubtitle(MakeStatusText());
+            }
         }
 
 };

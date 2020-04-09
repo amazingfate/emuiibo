@@ -12,20 +12,27 @@ namespace ipc::emu {
 
         private:
             enum class CommandId {
-                GetEmulationStatus = 0,
-                SetEmulationStatus = 1,
-                GetActiveVirtualAmiibo = 2,
-                SetActiveVirtualAmiibo = 3,
-                ResetActiveVirtualAmiibo = 4,
-                GetActiveVirtualAmiiboStatus = 5,
-                SetActiveVirtualAmiiboStatus = 6,
-                ReadNextAvailableVirtualAmiibo = 7,
-                ResetAvailableVirtualAmiiboIterator = 8,
-                GetVersion = 9,
+                GetVersion = 0,
+                GetEmulationStatus = 1,
+                SetEmulationStatus = 2,
+                GetActiveVirtualAmiibo = 3,
+                SetActiveVirtualAmiibo = 4,
+                ResetActiveVirtualAmiibo = 5,
+                GetActiveVirtualAmiiboStatus = 6,
+                SetActiveVirtualAmiiboStatus = 7,
+                ReadNextAvailableVirtualAmiibo = 8,
+                ResetAvailableVirtualAmiiboIterator = 9,
+                IsApplicationIdIntercepted = 10,
+                IsCurrentApplicationIdIntercepted = 11,
             };
 
         private:
             sys::VirtualAmiiboIterator amiibo_iterator;
+
+        private:
+            void GetVersion(ams::sf::Out<Version> out_version) {
+                out_version.SetValue(CurrentVersion);
+            }
 
             void GetEmulationStatus(ams::sf::Out<sys::EmulationStatus> out_status) {
                 auto status = sys::GetEmulationStatus();
@@ -37,8 +44,6 @@ namespace ipc::emu {
                 EMU_LOG_FMT("Emulation status: " << static_cast<u32>(status))
                 sys::SetEmulationStatus(status);
             }
-
-            // TODO: proper results
 
             ams::Result GetActiveVirtualAmiibo(ams::sf::Out<amiibo::VirtualAmiiboId> out_id, ams::sf::Out<amiibo::VirtualAmiiboData> out_data) {
                 auto &amiibo = sys::GetActiveVirtualAmiibo();
@@ -99,8 +104,12 @@ namespace ipc::emu {
                 this->amiibo_iterator.Reset();
             }
 
-            void GetVersion(ams::sf::Out<Version> out_version) {
-                out_version.SetValue(CurrentVersion);
+            void IsApplicationIdIntercepted(ams::sf::Out<bool> out_intercepted, u64 app_id) {
+                out_intercepted.SetValue(sys::IsApplicationIdIntercepted(app_id));
+            }
+
+            void IsCurrentApplicationIdIntercepted(ams::sf::Out<bool> out_intercepted) {
+                out_intercepted.SetValue(sys::IsCurrentApplicationIdIntercepted());
             }
         
         public:
@@ -114,6 +123,7 @@ namespace ipc::emu {
 
         public:
             DEFINE_SERVICE_DISPATCH_TABLE {
+                MAKE_SERVICE_COMMAND_META(GetVersion),
                 MAKE_SERVICE_COMMAND_META(GetEmulationStatus),
                 MAKE_SERVICE_COMMAND_META(SetEmulationStatus),
                 MAKE_SERVICE_COMMAND_META(GetActiveVirtualAmiibo),
@@ -123,7 +133,8 @@ namespace ipc::emu {
                 MAKE_SERVICE_COMMAND_META(SetActiveVirtualAmiiboStatus),
                 MAKE_SERVICE_COMMAND_META(ReadNextAvailableVirtualAmiibo),
                 MAKE_SERVICE_COMMAND_META(ResetAvailableVirtualAmiiboIterator),
-                MAKE_SERVICE_COMMAND_META(GetVersion),
+                MAKE_SERVICE_COMMAND_META(IsApplicationIdIntercepted),
+                MAKE_SERVICE_COMMAND_META(IsCurrentApplicationIdIntercepted),
             };
     };
 
