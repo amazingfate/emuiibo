@@ -6,7 +6,6 @@
 namespace {
 
     bool g_emuiibo_init_ok = false;
-    //bool g_in_second_menu = false;
     bool g_active_amiibo_valid = false;
     bool g_current_app_intercepted = false;
     emu::VirtualAmiiboId g_active_amiibo_id;
@@ -117,89 +116,7 @@ namespace {
     }
     
 }
-/*
-class AmiibosList : public tsl::Gui {
 
-    private:
-        tsl::elm::CustomOverlayFrame *root_frame;
-        tsl::elm::BigCategoryHeader *selected_header;
-        tsl::elm::CategoryHeader *count_header;
-        tsl::elm::List *list;
-        tsl::elm::List *header_list;
-
-    public:
-        AmiibosList() : root_frame(new tsl::elm::CustomOverlayFrame(MakeTitleText(), MakeStatusText())) {}
-
-        virtual tsl::elm::Element *createUI() override {
-            list = new tsl::elm::List();
-            header_list = new tsl::elm::List();
-
-            u32 count = 0;
-            // Reset the internal iterator, to start from the beginning
-            emu::ResetAvailableVirtualAmiiboIterator();
-            while(true) {
-                emu::VirtualAmiiboId id = {};
-                emu::VirtualAmiiboData data = {};
-                if(R_FAILED(emu::ReadNextAvailableVirtualAmiibo(&id, &data))) {
-                    break;
-                }
-                count++;
-                auto *item = new tsl::elm::SmallListItem(data.name);
-                item->setClickListener([id, this](u64 keys) {
-                    if(keys & KEY_A) {
-                        if(g_active_amiibo_valid) {
-                            if(g_active_amiibo_id.Equals(id)) {
-                                // User selected the active amiibo, so let's change connection then
-                                auto status = emu::GetActiveVirtualAmiiboStatus();
-                                switch(status) {
-                                    case emu::VirtualAmiiboStatus::Connected: {
-                                        emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                        root_frame->setSubtitle(MakeStatusText());
-                                        break;
-                                    }
-                                    case emu::VirtualAmiiboStatus::Disconnected: {
-                                        emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                        root_frame->setSubtitle(MakeStatusText());
-                                        break;
-                                    }
-                                    default:
-                                        break;
-                                }
-                                return true;
-                            }
-                        }
-                        // Set active amiibo and update our active amiibo value
-                        emu::SetActiveVirtualAmiibo(const_cast<emu::VirtualAmiiboId*>(&id));
-                        UpdateActiveAmiibo();
-                        selected_header->setText(MakeActiveAmiiboText());
-                        root_frame->setSubtitle(MakeStatusText());
-                        return true;   
-                    }
-                    return false;
-                });
-                list->addItem(item);
-            }
-            g_virtual_amiibo_count = count;
-
-            selected_header = new tsl::elm::BigCategoryHeader(MakeActiveAmiiboText(), true);
-            count_header = new tsl::elm::CategoryHeader(MakeAvailableAmiibosText(), true);
-
-            header_list->addItem(selected_header);
-            header_list->addItem(count_header);
-
-            root_frame->setHeader(header_list);
-            root_frame->setContent(list);
-            return root_frame;
-        }
-
-        virtual void update() override {
-            if(UpdateCurrentApplicationIntercepted()) {
-                root_frame->setSubtitle(MakeStatusText());
-            }
-        }
-
-};
-*/
 class EmuiiboGui : public tsl::Gui {
 
     private:
@@ -215,12 +132,7 @@ class EmuiiboGui : public tsl::Gui {
             auto bottom_list = new tsl::elm::List();
             
             if(g_emuiibo_init_ok) {
-                //auto status = emu::GetEmulationStatus();
-
-                //auto *toggle_item = new tsl::elm::NamedStepTrackBar("\u22EF", { "Off", "On" });
                 
-
-
                 toggle_item->setValueChangedListener([&](u8 progress) {
                     switch(progress) {
                         case 1: {
@@ -275,7 +187,7 @@ class EmuiiboGui : public tsl::Gui {
                     auto *item = new tsl::elm::SmallListItem(data.name);
                     item->setClickListener([id, this](u64 keys) {
                         if(keys & KEY_A) {
-                            /*
+                            /* NO NEED TO CHANGE AMIIBO STATUS HERE
                             if(g_active_amiibo_valid) {
                                 if(g_active_amiibo_id.Equals(id)) {
                                     // User selected the active amiibo, so let's change connection then
