@@ -11,6 +11,32 @@ namespace amiibo {
         u8 uuid[10];
     };
 
+    // This is the amiibo ID format sent by IPC
+
+    struct VirtualAmiiboId {
+        static constexpr u32 IdSize = SHA256_HASH_SIZE / 2;
+
+        u8 id[IdSize];
+
+        inline constexpr bool Equals(VirtualAmiiboId id) {
+            return memcmp(this->id, id.id, IdSize) == 0;
+        }
+    };
+
+    struct VirtualAmiiboData : public ams::sf::LargeData {
+        AmiiboUuidInfo uuid;
+        char name[40 + 1];
+        char path[FS_MAX_PATH];
+        Date first_write_date;
+        Date last_write_date;
+        CharInfo mii_charinfo;
+
+        inline bool IsValid() {
+            return strlen(this->name) && strlen(this->path);
+        }
+
+    };
+
     class IVirtualAmiiboBase {
 
         protected:
@@ -64,12 +90,37 @@ namespace amiibo {
             }
 
             inline CharInfo ReadMiiCharInfo() {
-                EMU_LOG_FMT("Mii charinfo path: " << this->GetMiiCharInfoPath())
-                return fs::Read<CharInfo>(this->GetMiiCharInfoPath());
+                CharInfo charinfo = {};
+                auto charinfo_path = this->GetMiiCharInfoPath();
+                if(fs::IsFile(charinfo_path)) {
+                    charinfo = fs::Read<CharInfo>(charinfo_path);
+                }
+                else {
+                    // The amiibo has no mii charinfo data
+                    // This might be a new emutool amiibo which needs a mii
+                    // Let's generate a random mii then
+                    charinfo = ipc::mii::GenerateRandomMii();
+                    // Save it too, for the next time
+                    fs::Save(charinfo_path, charinfo);
+                }
+                return charinfo;
             }
 
             inline bool IsValid() {
                 return this->valid;
+            }
+
+            VirtualAmiiboData ProduceData();
+
+            inline VirtualAmiiboId ProduceId() {
+                // The "ID" used for IPC is, basically, the first half of the SHA256 hash on the amiibo's path
+                u8 full_hash[SHA256_HASH_SIZE] = {0};
+                char hash_path[FS_MAX_PATH] = {0};
+                strncpy(hash_path, this->path.c_str(), FS_MAX_PATH - 1);
+                sha256CalculateHash(full_hash, hash_path, FS_MAX_PATH);
+                VirtualAmiiboId id = {};
+                memcpy(id.id, full_hash, VirtualAmiiboId::IdSize);
+                return id;
             }
 
     };
@@ -231,8 +282,10 @@ namespace amiibo {
                 return true;
             }
 
+            // This just checks if the files needed are present
+
             template<typename V>
-            static inline bool IsValidVirtualAmiibo(const std::string &amiibo_path) {
+            static inline bool IsValidVirtualAmiiboImpl(const std::string &amiibo_path) {
                 static_assert(std::is_base_of_v<IVirtualAmiiboBase, V>, "Invalid amiibo type");
                 if constexpr(std::is_same_v<V, VirtualBinAmiibo>) {
                     // Just check if it's a file and ends in .bin :P
@@ -249,6 +302,28 @@ namespace amiibo {
                 else if constexpr(std::is_same_v<V, VirtualAmiibo>) {
                     // The current format has an amiibo.flag file in case anyone would like to enable/disable a virtual amiibo from being recognized or used by emuiibo
                     return fs::IsDirectory(amiibo_path) && fs::IsFile(fs::Concat(amiibo_path, "amiibo.json")) && fs::IsFile(fs::Concat(amiibo_path, "amiibo.flag"));
+                }
+                return false;
+            }
+
+            // This two also validate that the amiibo contents are correct
+
+            template<typename V>
+            static inline bool IsValidVirtualAmiibo(const std::string &amiibo_path) {
+                static_assert(std::is_base_of_v<IVirtualAmiiboBase, V>, "Invalid amiibo type");
+                if(IsValidVirtualAmiiboImpl<V>(amiibo_path)) {
+                    V amiibo(amiibo_path);
+                    return amiibo.IsValid();
+                }
+                return false;
+            }
+
+            template<typename V>
+            static inline bool GetValidVirtualAmiibo(const std::string &amiibo_path, V &out_amiibo) {
+                static_assert(std::is_base_of_v<IVirtualAmiiboBase, V>, "Invalid amiibo type");
+                if(IsValidVirtualAmiiboImpl<V>(amiibo_path)) {
+                    out_amiibo = V(amiibo_path);
+                    return out_amiibo.IsValid();
                 }
                 return false;
             }
@@ -323,24 +398,103 @@ namespace amiibo {
 
     class VirtualAmiiboV2 : public IVirtualAmiiboBase {
 
-        private:
-            JSON amiibo_data;
+        // TODO
+
+        public:
+            // Stubbed
+            using IVirtualAmiiboBase::IVirtualAmiiboBase;
+
+            std::string GetName() override {
+                return "";
+            }
+
+            AmiiboUuidInfo GetUuidInfo() override {
+                return {};
+            }
+
+            AmiiboId GetAmiiboId() override {
+                return {};
+            }
+
+            std::string GetMiiCharInfoFileName() override {
+                return "";
+            }
+
+            Date GetFirstWriteDate() override {
+                return {};
+            }
+
+            Date GetLastWriteDate() override {
+                return {};
+            }
+
+            u16 GetWriteCounter() override {
+                return 0;
+            }
+
+            u32 GetVersion() override {
+                return 0;
+            }
+
+            void FullyRemove() override {
+            }
 
     };
 
     // Raw binary, 0.1 virtual amiibo format
 
     struct RawAmiibo {
-        u8 uuid[0xa];
-        u8 unk1[0x6];
-        u8 unk2[0x1];
+        u8 uuid[10];
+        u8 unk1[6];
+        u8 unk2[1];
         u16 unk_counter;
         u8 unk3;
         u8 unk_crypto[0x40];
-        u8 amiibo_id[0x8];
+        u8 amiibo_id[8];
     } PACKED;
 
     class VirtualBinAmiibo : public IVirtualAmiiboBase {
+
+        // TODO
+
+        public:
+            // Stubbed
+            using IVirtualAmiiboBase::IVirtualAmiiboBase;
+
+            std::string GetName() override {
+                return "";
+            }
+
+            AmiiboUuidInfo GetUuidInfo() override {
+                return {};
+            }
+
+            AmiiboId GetAmiiboId() override {
+                return {};
+            }
+
+            std::string GetMiiCharInfoFileName() override {
+                return "";
+            }
+
+            Date GetFirstWriteDate() override {
+                return {};
+            }
+
+            Date GetLastWriteDate() override {
+                return {};
+            }
+
+            u16 GetWriteCounter() override {
+                return 0;
+            }
+
+            u32 GetVersion() override {
+                return 0;
+            }
+
+            void FullyRemove() override {
+            }
 
     };
 

@@ -1,6 +1,7 @@
  
 #pragma once
-#include <ipc/emu/emu_IVirtualAmiibo.hpp>
+#include <ipc/ipc_Utils.hpp>
+#include <sys/sys_Emulation.hpp>
 #include <sys/sys_Locator.hpp>
 
 namespace ipc::emu {
@@ -14,25 +15,18 @@ namespace ipc::emu {
                 GetEmulationStatus = 0,
                 SetEmulationStatus = 1,
                 GetActiveVirtualAmiibo = 2,
-                ResetActiveVirtualAmiibo = 3,
-                GetActiveVirtualAmiiboStatus = 4,
-                SetActiveVirtualAmiiboStatus = 5,
-                GetVirtualAmiiboCount = 6,
-                OpenVirtualAmiibo = 7,
-                GetVersion = 8,
+                SetActiveVirtualAmiibo = 3,
+                ResetActiveVirtualAmiibo = 4,
+                GetActiveVirtualAmiiboStatus = 5,
+                SetActiveVirtualAmiiboStatus = 6,
+                ReadNextAvailableVirtualAmiibo = 7,
+                ResetAvailableVirtualAmiiboIterator = 8,
+                GetVersion = 9,
             };
 
-            inline ams::Result OpenAmiiboImpl(amiibo::VirtualAmiibo amiibo, ams::sf::Out<std::shared_ptr<IVirtualAmiibo>> out_amiibo) {
-                EMU_LOG_FMT("Virtual amiibo valid: " << std::boolalpha << amiibo.IsValid())
-                R_UNLESS(amiibo.IsValid(), 0xdead);
-                EMU_LOG_FMT("Amiibo name: '" << amiibo.GetName() << "'")
-
-                auto amiibo_obj = std::make_shared<IVirtualAmiibo>(amiibo);
-                out_amiibo.SetValue(std::move(amiibo_obj));
-                return ams::ResultSuccess();
-            }
-
         private:
+            sys::VirtualAmiiboIterator amiibo_iterator;
+
             void GetEmulationStatus(ams::sf::Out<sys::EmulationStatus> out_status) {
                 auto status = sys::GetEmulationStatus();
                 EMU_LOG_FMT("Emulation status: " << static_cast<u32>(status))
@@ -44,9 +38,34 @@ namespace ipc::emu {
                 sys::SetEmulationStatus(status);
             }
 
-            ams::Result GetActiveVirtualAmiibo(ams::sf::Out<std::shared_ptr<IVirtualAmiibo>> out_amiibo) {
+            // TODO: proper results
+
+            ams::Result GetActiveVirtualAmiibo(ams::sf::Out<amiibo::VirtualAmiiboId> out_id, ams::sf::Out<amiibo::VirtualAmiiboData> out_data) {
                 auto &amiibo = sys::GetActiveVirtualAmiibo();
-                return OpenAmiiboImpl(amiibo, out_amiibo);
+                R_UNLESS(amiibo.IsValid(), result::emu::ResultNoActiveVirtualAmiibo);
+
+                out_id.SetValue(amiibo.ProduceId());
+                out_data.SetValue(amiibo.ProduceData());
+                return ams::ResultSuccess();
+            }
+
+            ams::Result SetActiveVirtualAmiibo(amiibo::VirtualAmiiboId amiibo_id) {
+                // Find the amiibo with a new iterator
+                sys::VirtualAmiiboIterator iterator;
+                iterator.Initialize(consts::AmiiboDir);
+                while(true) {
+                    amiibo::VirtualAmiibo amiibo;
+                    auto ok = iterator.NextEntry(amiibo);
+                    if(!ok) {
+                        break;
+                    }
+                    if(amiibo_id.Equals(amiibo.ProduceId())) {
+                        sys::SetActiveVirtualAmiibo(amiibo);
+                        return ams::ResultSuccess();
+                    }
+                }
+                iterator.Finalize();
+                return result::emu::ResultInvalidVirtualAmiiboId;
             }
 
             void ResetActiveVirtualAmiibo() {
@@ -66,16 +85,18 @@ namespace ipc::emu {
                 sys::SetActiveVirtualAmiiboStatus(status);
             }
 
-            void GetVirtualAmiiboCount(ams::sf::Out<u32> out_count) {
-                auto count = sys::GetVirtualAmiiboCount();
-                EMU_LOG_FMT("Count: " << count)
-                out_count.SetValue(count);
+            ams::Result ReadNextAvailableVirtualAmiibo(ams::sf::Out<amiibo::VirtualAmiiboId> out_id, ams::sf::Out<amiibo::VirtualAmiiboData> out_data) {
+                amiibo::VirtualAmiibo amiibo;
+                bool ok = this->amiibo_iterator.NextEntry(amiibo);
+                R_UNLESS(ok, result::emu::ResultIteratorEndReached);
+
+                out_id.SetValue(amiibo.ProduceId());
+                out_data.SetValue(amiibo.ProduceData());
+                return ams::ResultSuccess();
             }
 
-            ams::Result OpenVirtualAmiibo(u32 idx, ams::sf::Out<std::shared_ptr<IVirtualAmiibo>> out_amiibo) {
-                auto amiibo_path = sys::GetVirtualAmiibo(idx);
-                amiibo::VirtualAmiibo amiibo(amiibo_path);
-                return OpenAmiiboImpl(amiibo, out_amiibo);
+            void ResetAvailableVirtualAmiiboIterator() {
+                this->amiibo_iterator.Reset();
             }
 
             void GetVersion(ams::sf::Out<Version> out_version) {
@@ -84,7 +105,11 @@ namespace ipc::emu {
         
         public:
             IEmulationService() {
-                sys::UpdateVirtualAmiiboCache();
+                this->amiibo_iterator.Initialize(consts::AmiiboDir);
+            }
+
+            ~IEmulationService() {
+                this->amiibo_iterator.Finalize();
             }
 
         public:
@@ -92,11 +117,12 @@ namespace ipc::emu {
                 MAKE_SERVICE_COMMAND_META(GetEmulationStatus),
                 MAKE_SERVICE_COMMAND_META(SetEmulationStatus),
                 MAKE_SERVICE_COMMAND_META(GetActiveVirtualAmiibo),
+                MAKE_SERVICE_COMMAND_META(SetActiveVirtualAmiibo),
                 MAKE_SERVICE_COMMAND_META(ResetActiveVirtualAmiibo),
                 MAKE_SERVICE_COMMAND_META(GetActiveVirtualAmiiboStatus),
                 MAKE_SERVICE_COMMAND_META(SetActiveVirtualAmiiboStatus),
-                MAKE_SERVICE_COMMAND_META(GetVirtualAmiiboCount),
-                MAKE_SERVICE_COMMAND_META(OpenVirtualAmiibo),
+                MAKE_SERVICE_COMMAND_META(ReadNextAvailableVirtualAmiibo),
+                MAKE_SERVICE_COMMAND_META(ResetAvailableVirtualAmiiboIterator),
                 MAKE_SERVICE_COMMAND_META(GetVersion),
             };
     };

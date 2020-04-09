@@ -39,44 +39,46 @@ namespace emu {
         serviceDispatchIn(&g_emuiibo_srv, 1, in);
     }
 
-    Result GetActiveVirtualAmiibo(VirtualAmiibo &amiibo) {
-        return serviceDispatch(&g_emuiibo_srv, 2,
-            .out_num_objects = 1,
-            .out_objects = &amiibo.srv,
+    Result GetActiveVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data) {
+        return serviceDispatchOut(&g_emuiibo_srv, 2, *out_amiibo_id,
+            .buffer_attrs = { SfBufferAttr_FixedSize | SfBufferAttr_HipcPointer | SfBufferAttr_Out },
+            .buffers = { { out_amiibo_data, sizeof(VirtualAmiiboData) } },
         );
     }
 
+    Result SetActiveVirtualAmiibo(VirtualAmiiboId *amiibo_id) {
+        return serviceDispatchIn(&g_emuiibo_srv, 3, *amiibo_id);
+    }
+
     void ResetActiveVirtualAmiibo() {
-        serviceDispatch(&g_emuiibo_srv, 3);
+        serviceDispatch(&g_emuiibo_srv, 4);
     }
 
     VirtualAmiiboStatus GetActiveVirtualAmiiboStatus() {
         u32 out = 0;
-        serviceDispatchOut(&g_emuiibo_srv, 4, out);
+        serviceDispatchOut(&g_emuiibo_srv, 5, out);
         return static_cast<VirtualAmiiboStatus>(out);
     }
 
     void SetActiveVirtualAmiiboStatus(VirtualAmiiboStatus status) {
         u32 in = static_cast<u32>(status);
-        serviceDispatchIn(&g_emuiibo_srv, 5, in);
+        serviceDispatchIn(&g_emuiibo_srv, 6, in);
     }
 
-    u32 GetVirtualAmiiboCount() {
-        u32 count = 0;
-        serviceDispatchOut(&g_emuiibo_srv, 6, count);
-        return count;
-    }
-
-    Result OpenVirtualAmiibo(u32 idx, VirtualAmiibo &amiibo) {
-        return serviceDispatchIn(&g_emuiibo_srv, 7, idx,
-            .out_num_objects = 1,
-            .out_objects = &amiibo.srv,
+    Result ReadNextAvailableVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data) {
+        return serviceDispatchOut(&g_emuiibo_srv, 7, *out_amiibo_id,
+            .buffer_attrs = { SfBufferAttr_FixedSize | SfBufferAttr_HipcPointer | SfBufferAttr_Out },
+            .buffers = { { out_amiibo_data, sizeof(VirtualAmiiboData) } },
         );
+    }
+
+    void ResetAvailableVirtualAmiiboIterator() {
+        serviceDispatch(&g_emuiibo_srv, 8);
     }
 
     Version GetVersion() {
         Version ver = {};
-        serviceDispatchOut(&g_emuiibo_srv, 8, ver);
+        serviceDispatchOut(&g_emuiibo_srv, 9, ver);
         return ver;
     }
 

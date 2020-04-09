@@ -42,6 +42,17 @@ struct AmiiboId {
         return id;
     }
 
+    inline constexpr u64 Encode() {
+        union {
+            u64 v;
+            u8 u[8];
+        } converter = {0};
+        for(u32 i = 0; i < sizeof(AmiiboId); i++) {
+            converter.u[i] = ((u8*)this)[i];
+        }
+        return converter.v;
+    }
+
 } PACKED;
 
 static_assert(sizeof(AmiiboId) == 7, "Invalid AmiiboId type");

@@ -61,6 +61,12 @@ There are two examples for the usage of this services: `emuiibo-example`, which 
 
 - **libstratosphere** project and libraries
 
-- **AmiiboAPI** (JSON API), which is used by `emutool` to get a proper, full amiibo list, in order to generate virtual amiibos.
+- **AmiiboAPI** web API, which is used by `emutool` to get a proper, full amiibo list, in order to generate virtual amiibos.
 
 - [**3DBrew**](https://www.3dbrew.org/wiki/Amiibo) for their detailed documentation of amiibos, even though some aspects are different on the Switch.
+
+- **AD2076** for helping with the tesla overlay.
+
+- **Thog** and **Ryujinx** devs for reversing mii services and various of its types.
+
+- **Citra** devs for several amiibo formats used in 3DS systems.

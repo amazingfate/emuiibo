@@ -2,28 +2,27 @@
 #define TESLA_INIT_IMPL
 #include <emuiibo.hpp>
 #include <libtesla_ext.hpp>
-#include <sstream>
 
 namespace {
 
     bool g_emuiibo_init_ok = false;
-    emu::VirtualAmiibo g_active_amiibo;
-    std::vector<emu::VirtualAmiibo> g_amiibo_list;
+    //bool g_in_second_menu = false;
+    bool g_active_amiibo_valid = false;
+    emu::VirtualAmiiboId g_active_amiibo_id;
+    emu::VirtualAmiiboData g_active_amiibo_data;
+    u32 g_virtual_amiibo_count = 0;
 
-    inline void ClearAmiiboList() {
-        for(auto &amiibo: g_amiibo_list) {
-            amiibo.Close();
-        }
-        g_amiibo_list.clear();
+    inline void UpdateActiveAmiibo() {
+        g_active_amiibo_valid = R_SUCCEEDED(emu::GetActiveVirtualAmiibo(&g_active_amiibo_id, &g_active_amiibo_data));
     }
 
     inline std::string MakeAvailableAmiibosText() {
-        return "Available virtual amiibos (" + std::to_string(g_amiibo_list.size()) + ")";
+        return "Available virtual amiibos (" + std::to_string(g_virtual_amiibo_count) + ")";
     }
 
     inline std::string MakeActiveAmiiboText() {
-        if(g_active_amiibo.IsValid()) {
-            return g_active_amiibo.GetName();
+        if(g_active_amiibo_valid) {
+            return g_active_amiibo_data.name;
         }
         return "No active virtual amiibo";
     }
@@ -57,7 +56,7 @@ namespace {
 
     inline std::string MakeActiveAmiiboStatusText() {
         std::string msg = "";
-        if(!g_active_amiibo.IsValid()) {
+        if(!g_active_amiibo_valid) {
             return msg;
         } else {
             auto v_status = emu::GetActiveVirtualAmiiboStatus();
@@ -97,18 +96,21 @@ class AmiibosList : public tsl::Gui {
             list = new tsl::elm::List();
             header_list = new tsl::elm::List();
 
-            selected_header = new tsl::elm::BigCategoryHeader(MakeActiveAmiiboText(), true);
-            count_header = new tsl::elm::CategoryHeader(MakeAvailableAmiibosText(), true);
-
-            header_list->addItem(selected_header);
-            header_list->addItem(count_header);
-            
-            for(auto &amiibo: g_amiibo_list) {
-                auto *item = new tsl::elm::SmallListItem(amiibo.GetName());
-                item->setClickListener([&](u64 keys) {
+            u32 count = 0;
+            // Reset the internal iterator, to start from the beginning
+            emu::ResetAvailableVirtualAmiiboIterator();
+            while(true) {
+                emu::VirtualAmiiboId id = {};
+                emu::VirtualAmiiboData data = {};
+                if(R_FAILED(emu::ReadNextAvailableVirtualAmiibo(&id, &data))) {
+                    break;
+                }
+                count++;
+                auto *item = new tsl::elm::SmallListItem(data.name);
+                item->setClickListener([id, this](u64 keys) {
                     if(keys & KEY_A) {
-                        if(g_active_amiibo.IsValid()) {
-                            if(amiibo.GetName() == g_active_amiibo.GetName()) {
+                        if(g_active_amiibo_valid) {
+                            if(g_active_amiibo_id.Equals(id)) {
                                 // User selected the active amiibo, so let's change connection then
                                 auto status = emu::GetActiveVirtualAmiiboStatus();
                                 switch(status) {
@@ -129,9 +131,8 @@ class AmiibosList : public tsl::Gui {
                             }
                         }
                         // Set active amiibo and update our active amiibo value
-                        amiibo.SetAsActiveVirtualAmiibo();
-                        g_active_amiibo.Close();
-                        emu::GetActiveVirtualAmiibo(g_active_amiibo);
+                        emu::SetActiveVirtualAmiibo(const_cast<emu::VirtualAmiiboId*>(&id));
+                        UpdateActiveAmiibo();
                         selected_header->setText(MakeActiveAmiiboText());
                         root_frame->setSubtitle(MakeStatusText());
                         return true;   
@@ -140,6 +141,13 @@ class AmiibosList : public tsl::Gui {
                 });
                 list->addItem(item);
             }
+            g_virtual_amiibo_count = count;
+
+            selected_header = new tsl::elm::BigCategoryHeader(MakeActiveAmiiboText(), true);
+            count_header = new tsl::elm::CategoryHeader(MakeAvailableAmiibosText(), true);
+
+            header_list->addItem(selected_header);
+            header_list->addItem(count_header);
 
             root_frame->setHeader(header_list);
             root_frame->setContent(list);
@@ -184,7 +192,7 @@ class EmuiiboGui : public tsl::Gui {
                 
                 amiibo_header->setClickListener([&](u64 keys) { 
                     if(keys & KEY_A) {
-                        if(g_active_amiibo.IsValid()) {
+                        if(g_active_amiibo_valid) {
                             // User selected the active amiibo, so let's change connection then
                             auto status = emu::GetActiveVirtualAmiiboStatus();
                             switch(status) {
@@ -209,24 +217,34 @@ class EmuiiboGui : public tsl::Gui {
                 top_list->addItem(toggle_item);
                 top_list->addItem(amiibo_header);
 
-                for(auto &amiibo: g_amiibo_list) {
-                    auto *item = new tsl::elm::SmallListItem(amiibo.GetName());
-                    item->setClickListener([&](u64 keys) {
+
+                u32 count = 0;
+                // Reset the internal iterator, to start from the beginning
+                emu::ResetAvailableVirtualAmiiboIterator();
+                while(true) {
+                    emu::VirtualAmiiboId id = {};
+                    emu::VirtualAmiiboData data = {};
+                    if(R_FAILED(emu::ReadNextAvailableVirtualAmiibo(&id, &data))) {
+                        break;
+                    }
+                    count++;
+                    auto *item = new tsl::elm::SmallListItem(data.name);
+                    item->setClickListener([id, this](u64 keys) {
                         if(keys & KEY_A) {
-                            /* Not sure if cconnect/disconnect should happen here too. Not needed imho
-                            if(g_active_amiibo.IsValid()) {
-                                if(amiibo.GetName() == g_active_amiibo.GetName()) {
+                            /*
+                            if(g_active_amiibo_valid) {
+                                if(g_active_amiibo_id.Equals(id)) {
                                     // User selected the active amiibo, so let's change connection then
                                     auto status = emu::GetActiveVirtualAmiiboStatus();
                                     switch(status) {
                                         case emu::VirtualAmiiboStatus::Connected: {
                                             emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                            //root_frame->setSubtitle(MakeStatusText());
+                                            root_frame->setSubtitle(MakeStatusText());
                                             break;
                                         }
                                         case emu::VirtualAmiiboStatus::Disconnected: {
                                             emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                            //root_frame->setSubtitle(MakeStatusText());
+                                            root_frame->setSubtitle(MakeStatusText());
                                             break;
                                         }
                                         default:
@@ -237,15 +255,15 @@ class EmuiiboGui : public tsl::Gui {
                             }
                             */
                             // Set active amiibo and update our active amiibo value
-                            amiibo.SetAsActiveVirtualAmiibo();
-                            g_active_amiibo.Close();
-                            emu::GetActiveVirtualAmiibo(g_active_amiibo);
+                            emu::SetActiveVirtualAmiibo(const_cast<emu::VirtualAmiiboId*>(&id));
+                            UpdateActiveAmiibo();
                             return true;   
                         }
                         return false;
                     });
                     bottom_list->addItem(item);
                 }
+                g_virtual_amiibo_count = count;
 
             }
             else {
@@ -254,7 +272,7 @@ class EmuiiboGui : public tsl::Gui {
 
             root_frame->setClickListener([&](u64 keys) { 
                 if(keys & KEY_RSTICK) {
-                    if(g_active_amiibo.IsValid()) {
+                    if(g_active_amiibo_valid) {
                         // User selected the active amiibo, so let's change connection then
                         auto status = emu::GetActiveVirtualAmiiboStatus();
                         switch(status) {
@@ -289,6 +307,7 @@ class EmuiiboGui : public tsl::Gui {
         }
 
         virtual void update() override {
+            root_frame->setSubtitle(MakeAvailableAmiibosText());
             amiibo_header->setText(MakeActiveAmiiboText());
             amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected?tsl::style::color::ColorWarning:tsl::style::color::ColorHighlight);
             u8 toggle_progress;
@@ -314,13 +333,11 @@ class Overlay : public tsl::Overlay {
                 }
             });
             if(g_emuiibo_init_ok) {
-                emu::GetActiveVirtualAmiibo(g_active_amiibo);
-                g_amiibo_list = emu::ListAmiibos();
+                UpdateActiveAmiibo();
             }
         }
         
         virtual void exitServices() override {
-            ClearAmiiboList();
             emu::Exit();
         }
         

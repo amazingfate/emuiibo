@@ -10,11 +10,11 @@ base:
 	@$(MAKE) -C emuiibo/
 	@$(MAKE) -C overlay/
 	@rm -rf $(CURDIR)/SdOut
-	@mkdir -p $(CURDIR)/SdOut/contents/0100000000000352/flags
-	@touch $(CURDIR)/SdOut/contents/0100000000000352/flags/boot2.flag
-	@cp $(CURDIR)/emuiibo/emuiibo.nsp $(CURDIR)/SdOut/contents/0100000000000352/exefs.nsp
+	@mkdir -p $(CURDIR)/SdOut/atmosphere/contents/0100000000000352/flags
+	@touch $(CURDIR)/SdOut/atmosphere/contents/0100000000000352/flags/boot2.flag
+	@cp $(CURDIR)/emuiibo/emuiibo.nsp $(CURDIR)/SdOut/atmosphere/contents/0100000000000352/exefs.nsp
 	@mkdir -p $(CURDIR)/SdOut/switch/.overlays
-	@cp $(CURDIR)/overlay/emuiibo.ovl $(CURDIR)/SdOut/switch/.overlays/overlay.ovl
+	@cp $(CURDIR)/overlay/emuiibo.ovl $(CURDIR)/SdOut/switch/.overlays/emuiibo.ovl
 
 setdev:
 	$(eval export EMUIIBO_DEV := true)

@@ -1,7 +1,6 @@
 #include "emuiibo.h"
-#include <string.h>
 
-static Service g_emuiibo_nfpemu_srv;
+static Service g_emuiibo_srv;
 
 #define EMUIIBO_SRV "nfp:emu"
 
@@ -19,78 +18,69 @@ bool emuiiboIsAvailable() {
 }
 
 Result emuiiboInitialize() {
-    if(serviceIsActive(&g_emuiibo_nfpemu_srv)) {
+    if(serviceIsActive(&g_emuiibo_srv)) {
         return 0;
     }
-    return smGetService(&g_emuiibo_nfpemu_srv, EMUIIBO_SRV);
+    return smGetService(&g_emuiibo_srv, EMUIIBO_SRV);
 }
 
 void emuiiboExit() {
-    if(serviceIsActive(&g_emuiibo_nfpemu_srv)) {
-        serviceClose(&g_emuiibo_nfpemu_srv);
+    if(serviceIsActive(&g_emuiibo_srv)) {
+        serviceClose(&g_emuiibo_srv);
     }
 }
 
 EmuiiboEmulationStatus emuiiboGetEmulationStatus() {
     u32 out = 0;
-    serviceDispatchOut(&g_emuiibo_nfpemu_srv, 0, out);
+    serviceDispatchOut(&g_emuiibo_srv, 0, out);
     return (EmuiiboEmulationStatus)out;
 }
 
 void emuiiboSetEmulationStatus(EmuiiboEmulationStatus status) {
     u32 in = (u32)status;
-    serviceDispatchIn(&g_emuiibo_nfpemu_srv, 1, in);
+    serviceDispatchIn(&g_emuiibo_srv, 1, in);
 }
 
-Result emuiiboGetActiveVirtualAmiibo(EmuiiboVirtualAmiibo *out_amiibo) {
-    return serviceDispatch(&g_emuiibo_nfpemu_srv, 2,
-        .out_num_objects = 1,
-        .out_objects = &out_amiibo->s,
+Result emuiiboGetActiveVirtualAmiibo(EmuiiboVirtualAmiiboId *out_amiibo_id, EmuiiboVirtualAmiiboData *out_amiibo_data) {
+    return serviceDispatchOut(&g_emuiibo_srv, 2, *out_amiibo_id,
+        .buffer_attrs = { SfBufferAttr_FixedSize | SfBufferAttr_HipcPointer | SfBufferAttr_Out },
+        .buffers = { { out_amiibo_data, sizeof(EmuiiboVirtualAmiiboData) } },
     );
 }
 
+Result emuiiboSetActiveVirtualAmiibo(EmuiiboVirtualAmiiboId *amiibo_id) {
+    return serviceDispatchIn(&g_emuiibo_srv, 3, *amiibo_id);
+}
+
 void emuiiboResetActiveVirtualAmiibo() {
-    serviceDispatch(&g_emuiibo_nfpemu_srv, 3);
+    serviceDispatch(&g_emuiibo_srv, 4);
 }
 
 EmuiiboVirtualAmiiboStatus emuiiboGetActiveVirtualAmiiboStatus() {
     u32 out = 0;
-    serviceDispatchOut(&g_emuiibo_nfpemu_srv, 4, out);
+    serviceDispatchOut(&g_emuiibo_srv, 5, out);
     return (EmuiiboVirtualAmiiboStatus)out;
 }
 
 void emuiiboSetActiveVirtualAmiiboStatus(EmuiiboVirtualAmiiboStatus status) {
     u32 in = (u32)status;
-    serviceDispatchIn(&g_emuiibo_nfpemu_srv, 5, in);
+    serviceDispatchIn(&g_emuiibo_srv, 6, in);
 }
 
-u32 emuiiboGetVirtualAmiiboCount() {
-    u32 count = 0;
-    serviceDispatchOut(&g_emuiibo_nfpemu_srv, 6, count);
-    return count;
-}
-
-Result emuiiboOpenVirtualAmiibo(u32 idx, EmuiiboVirtualAmiibo *out_amiibo) {
-    return serviceDispatchIn(&g_emuiibo_nfpemu_srv, 7, idx,
-        .out_num_objects = 1,
-        .out_objects = &out_amiibo->s,
+Result emuiiboReadNextAvailableVirtualAmiibo(EmuiiboVirtualAmiiboId *out_amiibo_id, EmuiiboVirtualAmiiboData *out_amiibo_data) {
+    return serviceDispatchOut(&g_emuiibo_srv, 7, *out_amiibo_id,
+        .buffer_attrs = { SfBufferAttr_FixedSize | SfBufferAttr_HipcPointer | SfBufferAttr_Out },
+        .buffers = { { out_amiibo_data, sizeof(EmuiiboVirtualAmiiboData) } },
     );
+}
+
+void emuiiboResetAvailableVirtualAmiiboIterator() {
+    serviceDispatch(&g_emuiibo_srv, 8);
 }
 
 EmuiiboVersion emuiiboGetVersion() {
     EmuiiboVersion ver;
     memset(&ver, 0, sizeof(ver));
-    serviceDispatchOut(&g_emuiibo_nfpemu_srv, 8, ver);
+    serviceDispatchOut(&g_emuiibo_srv, 9, ver);
     return ver;
-}
-
-void emuiiboVirtualAmiiboSetAsActiveVirtualAmiibo(EmuiiboVirtualAmiibo *amiibo) {
-    serviceDispatch(&amiibo->s, 0);
-}
-
-void emuiiboVirtualAmiiboGetName(EmuiiboVirtualAmiibo *amiibo, char *out_name, size_t out_name_size) {
-    serviceDispatch(&amiibo->s, 1,
-        .buffer_attrs = { SfBufferAttr_HipcMapAlias | SfBufferAttr_Out },
-        .buffers = { { out_name, out_name_size } },
-    );
 }

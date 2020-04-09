@@ -6,51 +6,32 @@
 
 namespace sys {
 
-    static std::vector<std::string> g_cached_amiibos;
-    static Lock g_cached_amiibos_lock;
-
-    static inline std::vector<std::string> ListVirtualAmiibosImpl() {
-        EMU_LOCK_SCOPE_WITH(g_cached_amiibos_lock);
-        std::vector<std::string> amiibos;
-        auto dir = opendir(consts::AmiiboDir.c_str());
-        if(dir) {
-            while(true) {
-                auto dt = readdir(dir);
-                if(dt == nullptr) {
-                    break;
-                }
-                auto path = fs::Concat(consts::AmiiboDir, dt->d_name);
-                // Is this format valid?
-                if(amiibo::VirtualAmiibo::IsValidVirtualAmiibo<amiibo::VirtualAmiibo>(path)) {
-                    amiibos.push_back(path);
-                }
+    bool VirtualAmiiboIterator::Next(amiibo::VirtualAmiibo &out_amiibo) {
+        auto dir = this->GetCurrentDirectory();
+        auto entry = readdir(dir.handle);
+        if(entry != nullptr) {
+            auto path = fs::Concat(dir.path, entry->d_name);
+            if(amiibo::VirtualAmiibo::GetValidVirtualAmiibo<amiibo::VirtualAmiibo>(path, out_amiibo)) {
+                return true;
             }
-            closedir(dir);
+            else if(fs::IsDirectory(path)) {
+                // Open subdir and iterate through it
+                this->OpenSubDirectory(path);
+                // Running Next() now will scan on this new dir
+                return this->Next(out_amiibo);
+            }
+            else {
+                // Continue until we reach the end or we actually find a valid one
+                return this->Next(out_amiibo);
+            }
         }
-        return amiibos;
-    }
-
-    static inline void DoCacheAmiibos() {
-        EMU_LOCK_SCOPE_WITH(g_cached_amiibos_lock);
-        g_cached_amiibos = ListVirtualAmiibosImpl();
-    }
-
-    void UpdateVirtualAmiiboCache() {
-        EMU_LOCK_SCOPE_WITH(g_cached_amiibos_lock);
-        DoCacheAmiibos();
-    }
-
-    u32 GetVirtualAmiiboCount() {
-        EMU_LOCK_SCOPE_WITH(g_cached_amiibos_lock);
-        return g_cached_amiibos.size();
-    }
-
-    std::string GetVirtualAmiibo(u32 idx) {
-        EMU_LOCK_SCOPE_WITH(g_cached_amiibos_lock);
-        if(idx < g_cached_amiibos.size()) {
-            return g_cached_amiibos[idx];
+        // If this is the end of a subdir, continue on the parent one
+        if(!this->inner_dir_handles.empty()) {
+            this->CloseLastDirectory();
+            // Running Next() now will scan on the parent dir
+            return Next(out_amiibo);
         }
-        return "";
+        return false;
     }
 
 }

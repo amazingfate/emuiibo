@@ -5,15 +5,15 @@
 
 namespace sys {
 
-    void ScanAmiiboDirectory() {
-        auto dir = opendir(consts::AmiiboDir.c_str());
+    static void ScanAmiiboDirectoryImpl(const std::string &base_path) {
+        auto dir = opendir(base_path.c_str());
         if(dir) {
             while(true) {
                 auto dt = readdir(dir);
                 if(dt == nullptr) {
                     break;
                 }
-                auto path = fs::Concat(consts::AmiiboDir, dt->d_name);
+                auto path = fs::Concat(base_path, dt->d_name);
                 // Process and convert outdated virtual amiibo formats
                 if(amiibo::VirtualAmiibo::IsValidVirtualAmiibo<amiibo::VirtualBinAmiibo>(path)) {
                     EMU_LOG_FMT("Converting raw bin at '" << path << "'...")
@@ -28,9 +28,20 @@ namespace sys {
                     auto ret = amiibo::VirtualAmiibo::ConvertVirtualAmiibo<amiibo::VirtualAmiiboV3>(path);
                     EMU_LOG_FMT("Conversion succeeded? " << std::boolalpha << ret << "...")
                 }
+                // Check that it isn't a valid amiibo (it would attempt to convert mii charinfo or area bins otherwise)
+                else if(!amiibo::VirtualAmiibo::IsValidVirtualAmiibo<amiibo::VirtualAmiibo>(path)) {
+                    // If it's a directory, scan amiibos there too
+                    if(fs::IsDirectory(path)) {
+                        ScanAmiiboDirectoryImpl(path);
+                    }
+                }
             }
             closedir(dir);
         }
+    }
+
+    void ScanAmiiboDirectory() {
+        ScanAmiiboDirectoryImpl(consts::AmiiboDir);
     }
 
 }

@@ -56,6 +56,10 @@ namespace ipc::nfp {
 
     class ICommonInterface : public ams::sf::IServiceObject {
 
+        public:
+            static constexpr u32 HandheldNpadId = 0x20;
+            static constexpr u32 Player1NpadId = 0;
+
         protected:
             NfpState state;
             NfpDeviceState device_state;
@@ -64,40 +68,29 @@ namespace ipc::nfp {
             ams::os::SystemEvent event_availability_change;
             Service *forward_service;
 
-            Lock emu_scan_lock;
+            Lock amiibo_update_lock;
             sys::VirtualAmiiboStatus last_notified_status;
-            ams::os::Thread scan_thread;
+            ams::os::Thread amiibo_update_thread;
             bool should_exit_thread;
 
-        public:
-            ICommonInterface(Service *fwd);
-            ~ICommonInterface();
-
-            void HandleVirtualAmiiboStatus(sys::VirtualAmiiboStatus status);
-
-            inline NfpDeviceState GetDeviceStateValue() {
-                EMU_LOCK_SCOPE_WITH(this->emu_scan_lock);
-                return this->device_state;
-            }
+        protected:
+            NfpState GetStateValue();
+            void SetStateValue(NfpState val);
+            NfpDeviceState GetDeviceStateValue();
+            void SetDeviceStateValue(NfpDeviceState val);
 
             inline void NotifyShouldExitThread() {
-                EMU_LOCK_SCOPE_WITH(this->emu_scan_lock);
+                EMU_LOCK_SCOPE_WITH(this->amiibo_update_lock);
                 this->should_exit_thread = true;
-            }
-
-            inline bool ShouldExitThread() {
-                EMU_LOCK_SCOPE_WITH(this->emu_scan_lock);
-                return this->should_exit_thread;
             }
 
             inline void NotifyThreadExitAndWait() {
                 this->NotifyShouldExitThread();
-                EMU_R_ASSERT(this->scan_thread.Join());
+                EMU_R_ASSERT(this->amiibo_update_thread.Join());
             }
 
-            template<typename S>
-            inline constexpr void IsInDeviceStateImpl(bool &out, NfpDeviceState base, S state) {
-                static_assert(std::is_same_v<NfpDeviceState, S>, "Invalid type");
+            template<typename T>
+            inline constexpr void IsInStateImpl(bool &out, T base, T state) {
                 if(base == state) {
                     out = true;
                 }
@@ -105,12 +98,32 @@ namespace ipc::nfp {
 
             // TODO: check for proper states in commands
 
-            template<typename ...Ss>
-            inline constexpr bool IsDeviceStateAny(Ss &&...states) {
+            template<typename T, typename ...Ss>
+            inline constexpr bool IsStateAny(Ss &&...states) {
+                static_assert(std::is_same_v<T, NfpState> || std::is_same_v<T, NfpDeviceState>, "Invalid type");
                 bool ret = false;
-                auto state = this->GetDeviceStateValue();
-                (IsInDeviceStateImpl(ret, state, states), ...);
-                return ret;
+                if constexpr(std::is_same_v<T, NfpState>) {
+                    auto state = this->GetStateValue();
+                    (IsInStateImpl(ret, state, states), ...);
+                    return ret;
+                }
+                else if constexpr(std::is_same_v<T, NfpDeviceState>) {
+                    auto state = this->GetDeviceStateValue();
+                    (IsInStateImpl(ret, state, states), ...);
+                    return ret;
+                }
+                return false;
+            }
+
+        public:
+            ICommonInterface(Service *fwd);
+            ~ICommonInterface();
+
+            void HandleVirtualAmiiboStatus(sys::VirtualAmiiboStatus status);
+
+            inline bool ShouldExitThread() {
+                EMU_LOCK_SCOPE_WITH(this->amiibo_update_lock);
+                return this->should_exit_thread;
             }
 
         protected:

@@ -1,12 +1,14 @@
 
 #pragma once
 #include <switch.h>
-#include <string>
 #include <sstream>
 #include <fstream>
 #include <mutex>
 #include <stratosphere.hpp>
 #include <json.hpp>
+
+#include <emu_Consts.hpp>
+#include <logger/logger_Logger.hpp>
 
 using i32 = s32;
 
@@ -25,28 +27,10 @@ static_assert(sizeof(Version) == sizeof(u32), "Invalid Version struct!");
 
 static inline constexpr Version CurrentVersion = { EMUIIBO_MAJOR, EMUIIBO_MINOR, EMUIIBO_MICRO, EMUIIBO_DEV };
 
-namespace consts {
-
-    static inline const std::string EmuDir = "sdmc:/emuiibo";
-    static inline const std::string SettingsPath = EmuDir + "/settings.json";
-    static inline const std::string LogFilePath = EmuDir + "/emuiibo.log";
-    static inline const std::string AmiiboDir = EmuDir + "/amiibo";
-    static inline const std::string DumpedMiisDir = EmuDir + "/miis";
-
-}
-
-#define EMU_LOG_FMT(...) { \
-    std::stringstream strm; \
-    strm << "[ emuiibo v" << EMUIIBO_VERSION << " | " << __PRETTY_FUNCTION__ << " ] " << __VA_ARGS__; \
-    auto f = fopen(consts::LogFilePath.c_str(), "a+"); \
-    if(f) { \
-        fprintf(f, "%s\n", strm.str().c_str()); \
-        fclose(f); \
-    } \
-}
-
-#define EMU_DEFINE_RESULT(name, mod, desc) static constexpr Result Result##name = MAKERESULT(mod, desc);
+#define EMU_DEFINE_RESULT(name, desc) static constexpr Result Result##name = MAKERESULT(Module, desc);
 
 using Lock = ams::os::RecursiveMutex;
 
 #define EMU_LOCK_SCOPE_WITH(mtx_name) std::scoped_lock lk(mtx_name);
+
+#define EMU_DO_UNLESS(cond, ...) ({ if(!(cond)) { __VA_ARGS__ } })

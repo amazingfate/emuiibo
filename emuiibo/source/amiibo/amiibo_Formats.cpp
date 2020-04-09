@@ -4,6 +4,19 @@
 
 namespace amiibo {
 
+    VirtualAmiiboData IVirtualAmiiboBase::ProduceData() {
+        VirtualAmiiboData data = {};
+        data.uuid = this->GetUuidInfo();
+        auto name = this->GetName();
+        strncpy(data.name, name.c_str(), 40);
+        auto path = this->GetPath();
+        strncpy(data.path, path.c_str(), FS_MAX_PATH - 1);
+        data.first_write_date = this->GetFirstWriteDate();
+        data.last_write_date = this->GetLastWriteDate();
+        data.mii_charinfo = this->ReadMiiCharInfo();
+        return data;
+    }
+
     void VirtualAmiibo::Save() {
         fs::CreateDirectory(this->path);
         auto amiibo_flag = fs::Concat(this->path, "amiibo.flag");
@@ -15,6 +28,10 @@ namespace amiibo {
 
     VirtualAmiibo::VirtualAmiibo(const std::string &amiibo_path) : IVirtualAmiiboBase(amiibo_path), area_manager(amiibo_path) {
         this->amiibo_data = fs::LoadJSONFile(fs::Concat(amiibo_path, "amiibo.json"));
+        // Some checks to see if the amiibo is correct
+        EMU_DO_UNLESS(!this->amiibo_data.empty(), this->valid = false;);
+        EMU_DO_UNLESS(this->HasKey(this->amiibo_data, "name"), this->valid = false;);
+        EMU_DO_UNLESS(this->HasKey(this->amiibo_data, "id"), this->valid = false;);
     }
 
     std::string VirtualAmiibo::GetName() {
@@ -139,6 +156,7 @@ namespace amiibo {
         else {
             memcpy(info.info.uuid, uuid_info.uuid, 10);
         }
+        
         info.info.tag_type = VirtualAmiibo::DefaultTagType;
         info.info.protocol = VirtualAmiibo::DefaultProtocol;
 
@@ -180,8 +198,6 @@ namespace amiibo {
         info.info.version = ver;
         info.info.application_area_size = AreaManager::DefaultSize;
 
-        // fs::Save("sdmc:/emu-common.bin", info.info);
-
         return info;
     }
 
@@ -190,6 +206,14 @@ namespace amiibo {
         this->register_data = fs::LoadJSONFile(this->GetJSONFileName("register"));
         this->common_data = fs::LoadJSONFile(this->GetJSONFileName("common"));
         this->model_data = fs::LoadJSONFile(this->GetJSONFileName("model"));
+        // Some checks to see if the amiibo is correct
+        EMU_DO_UNLESS(!this->tag_data.empty(), this->valid = false;);
+        EMU_DO_UNLESS(!this->register_data.empty(), this->valid = false;);
+        EMU_DO_UNLESS(!this->common_data.empty(), this->valid = false;);
+        EMU_DO_UNLESS(!this->model_data.empty(), this->valid = false;);
+        EMU_DO_UNLESS(this->HasKey(this->register_data, "name"), this->valid = false;);
+        EMU_DO_UNLESS(this->HasKey(this->model_data, "amiiboId"), this->valid = false;);
+        EMU_DO_UNLESS(this->HasKey(this->tag_data, "uuid") || this->HasKey(this->tag_data, "randomUuid"), this->valid = false;);
     }
 
     std::string VirtualAmiiboV3::GetName() {

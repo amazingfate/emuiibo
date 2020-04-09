@@ -3,31 +3,39 @@
 #include <vector>
 #include <string>
 #include <switch.h>
+#include <cstring>
 
 namespace emu {
 
-    struct VirtualAmiibo {
-        Service srv;
+    struct VirtualAmiiboId {
+        u8 id[0x10];
 
-        inline constexpr bool IsValid() {
-            return serviceIsActive(&this->srv);
+        inline constexpr bool Equals(VirtualAmiiboId id) {
+            return memcmp(this->id, id.id, 0x10) == 0;
         }
+    };
 
-        inline std::string GetName() {
-            char name[FS_MAX_PATH] = {0};
-            serviceDispatch(&this->srv, 1,
-                .buffer_attrs = { SfBufferAttr_HipcMapAlias | SfBufferAttr_Out },
-                .buffers = { { name, FS_MAX_PATH } },
-            );
-            return name;
-        }
+    struct VirtualAmiiboUuidInfo {
+        bool random_uuid;
+        u8 uuid[10];
+    };
 
-        inline void SetAsActiveVirtualAmiibo() {
-            serviceDispatch(&this->srv, 0);
-        }
+    struct VirtualAmiiboDate {
+        u16 year;
+        u8 month;
+        u8 day;
+    };
 
-        inline void Close() {
-            serviceClose(&this->srv);
+    struct VirtualAmiiboData {
+        VirtualAmiiboUuidInfo uuid;
+        char name[40 + 1];
+        char path[FS_MAX_PATH];
+        VirtualAmiiboDate first_write_date;
+        VirtualAmiiboDate last_write_date;
+        NfpMiiCharInfo mii_charinfo;
+
+        inline bool IsValid() {
+            return strlen(this->name) && strlen(this->path);
         }
 
     };
@@ -58,29 +66,16 @@ namespace emu {
     EmulationStatus GetEmulationStatus();
     void SetEmulationStatus(EmulationStatus status);
 
-    Result GetActiveVirtualAmiibo(VirtualAmiibo &amiibo);
+    Result GetActiveVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data);
+    Result SetActiveVirtualAmiibo(VirtualAmiiboId *amiibo_id);
     void ResetActiveVirtualAmiibo();
+
     VirtualAmiiboStatus GetActiveVirtualAmiiboStatus();
     void SetActiveVirtualAmiiboStatus(VirtualAmiiboStatus status);
 
-    u32 GetVirtualAmiiboCount();
-    Result OpenVirtualAmiibo(u32 idx, VirtualAmiibo &amiibo);
+    Result ReadNextAvailableVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data);
+    void ResetAvailableVirtualAmiiboIterator();
 
     Version GetVersion();
-
-    // Utils
-
-    inline std::vector<VirtualAmiibo> ListAmiibos() {
-        std::vector<VirtualAmiibo> amiibos;
-        auto count = GetVirtualAmiiboCount();
-        for(u32 i = 0; i < count; i++) {
-            VirtualAmiibo amiibo = {};
-            if(R_FAILED(OpenVirtualAmiibo(i, amiibo))) {
-                break;
-            }
-            amiibos.push_back(amiibo);
-        }
-        return amiibos;
-    }
 
 }

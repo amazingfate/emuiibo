@@ -1,6 +1,7 @@
 
 #pragma once
 #include <switch.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,8 +16,32 @@ This code won't work fine with <0.5 emuiibo.
 */
 
 typedef struct {
-    Service s;
-} EmuiiboVirtualAmiibo;
+    u8 id[0x10];
+} EmuiiboVirtualAmiiboId;
+
+NX_CONSTEXPR bool emuiiboEqualVirtualAmiiboIds(EmuiiboVirtualAmiiboId *a, EmuiiboVirtualAmiiboId *b) {
+    return memcmp(a->id, b->id, 0x10) == 0;
+}
+
+typedef struct {
+    bool random_uuid;
+    u8 uuid[10];
+} EmuiiboVirtualAmiiboUuidInfo;
+
+typedef struct {
+    u16 year;
+    u8 month;
+    u8 day;
+} EmuiiboVirtualAmiiboDate;
+
+typedef struct {
+    EmuiiboVirtualAmiiboUuidInfo uuid;
+    char name[40 + 1];
+    char path[FS_MAX_PATH];
+    EmuiiboVirtualAmiiboDate first_write_date;
+    EmuiiboVirtualAmiiboDate last_write_date;
+    NfpMiiCharInfo mii_charinfo;
+} EmuiiboVirtualAmiiboData;
 
 typedef enum {
     EmuiiboEmulationStatus_On,
@@ -64,18 +89,17 @@ void emuiiboExit();
 EmuiiboEmulationStatus emuiiboGetEmulationStatus();
 void emuiiboSetEmulationStatus(EmuiiboEmulationStatus status);
 
-Result emuiiboGetActiveVirtualAmiibo(EmuiiboVirtualAmiibo *out_amiibo);
+Result emuiiboGetActiveVirtualAmiibo(EmuiiboVirtualAmiiboId *out_amiibo_id, EmuiiboVirtualAmiiboData *out_amiibo_data);
+Result emuiiboSetActiveVirtualAmiibo(EmuiiboVirtualAmiiboId *amiibo_id);
 void emuiiboResetActiveVirtualAmiibo();
+
 EmuiiboVirtualAmiiboStatus emuiiboGetActiveVirtualAmiiboStatus();
 void emuiiboSetActiveVirtualAmiiboStatus(EmuiiboVirtualAmiiboStatus status);
 
-u32 emuiiboGetVirtualAmiiboCount();
-Result emuiiboOpenVirtualAmiibo(u32 idx, EmuiiboVirtualAmiibo *out_amiibo);
+Result emuiiboReadNextAvailableVirtualAmiibo(EmuiiboVirtualAmiiboId *out_amiibo_id, EmuiiboVirtualAmiiboData *out_amiibo_data);
+void emuiiboResetAvailableVirtualAmiiboIterator();
 
 EmuiiboVersion emuiiboGetVersion();
-
-void emuiiboVirtualAmiiboSetAsActiveVirtualAmiibo(EmuiiboVirtualAmiibo *amiibo);
-void emuiiboVirtualAmiiboGetName(EmuiiboVirtualAmiibo *amiibo, char *out_name, size_t out_name_size);
 
 #ifdef __cplusplus
 }

@@ -6,12 +6,6 @@
 #define console(...) { std::cout << __VA_ARGS__ << std::endl; consoleUpdate(nullptr); }
 #define console_rc(rc, str) console(str << ": 0x" << std::hex << rc << std::dec)
 
-inline std::string GetVirtualAmiiboName(EmuiiboVirtualAmiibo *amiibo) {
-    char amiibo_name[FS_MAX_PATH] = {0};
-    emuiiboVirtualAmiiboGetName(amiibo, amiibo_name, sizeof(amiibo_name));
-    return amiibo_name;
-}
-
 void DoKeyExit() {
     console(std::endl << "Press any key to exit")
     while(true) {
@@ -24,24 +18,20 @@ void DoKeyExit() {
 
 void DoListAmiibos() {
     consoleClear();
-    auto count = emuiiboGetVirtualAmiiboCount();
-    std::vector<EmuiiboVirtualAmiibo> amiibos;
-    for(u32 i = 0; i < count; i++) {
-        EmuiiboVirtualAmiibo amiibo;
-        if(R_FAILED(emuiiboOpenVirtualAmiibo(i, &amiibo))) {
-            break;
-        }
-        amiibos.push_back(amiibo);
-    }
     console("List options:")
     console("")
     console("[X] Move to the next amiibo")
     console("[B] Exit to main menu")
     console("[A] Set the last printed/current amiibo as active")
     console("")
-    for(auto &amiibo: amiibos) {
-        auto name = GetVirtualAmiiboName(&amiibo);
-        console(" - " << name);
+    emuiiboResetAvailableVirtualAmiiboIterator();
+    while(true) {
+        EmuiiboVirtualAmiiboId id = {};
+        EmuiiboVirtualAmiiboData data = {};
+        if(R_FAILED(emuiiboReadNextAvailableVirtualAmiibo(&id, &data))) {
+            break;
+        }
+        console(" - " << data.name << " (" << data.path << ")");
         bool move_next = false;
         bool set = false;
         while(appletMainLoop()) {
@@ -65,13 +55,10 @@ void DoListAmiibos() {
         if(move_next) {
             continue;
         }
-        emuiiboVirtualAmiiboSetAsActiveVirtualAmiibo(&amiibo);
+        emuiiboSetActiveVirtualAmiibo(&id);
         console("This virtual amiibo was set as active")
         DoKeyExit();
         break;
-    }
-    for(auto &amiibo: amiibos) {
-        serviceClose(&amiibo.s);
     }
 }
 
@@ -127,10 +114,10 @@ void PrintMainMenu() {
         }
     }
 
-    EmuiiboVirtualAmiibo active_amiibo;
-    if(R_SUCCEEDED(emuiiboGetActiveVirtualAmiibo(&active_amiibo))) {
-        auto name = GetVirtualAmiiboName(&active_amiibo);
-        console("Active virtual amiibo name: " << name)
+    EmuiiboVirtualAmiiboId active_amiibo_id = {};
+    EmuiiboVirtualAmiiboData active_amiibo_data = {};
+    if(R_SUCCEEDED(emuiiboGetActiveVirtualAmiibo(&active_amiibo_id, &active_amiibo_data))) {
+        console("Active virtual amiibo name: " << active_amiibo_data.name << " (" << active_amiibo_data.path << ")")
     }
     else {
         console("There is no active virtual amiibo.")

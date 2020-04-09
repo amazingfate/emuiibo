@@ -14,7 +14,7 @@ namespace ipc::mii {
                 if(R_SUCCEEDED(rc)) {
                     const size_t mii_name_len = 10;
                     char mii_name[mii_name_len + 1] = {0};
-                    // Make a copy of the struct name to avoid warnings of packed struct + misalignment
+                    // Use a copy to avoid warnings, since the charinfo struct is packed
                     u16 mii_name_16[mii_name_len + 1] = {0};
                     memcpy(mii_name_16, charinfo.mii_name, mii_name_len);
                     utf16_to_utf8((u8*)mii_name, (const u16*)mii_name_16, mii_name_len);
