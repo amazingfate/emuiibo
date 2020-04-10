@@ -2,6 +2,7 @@
 #define TESLA_INIT_IMPL
 #include <emuiibo.hpp>
 #include <libtesla_ext.hpp>
+#include <filesystem>
 
 namespace {
 
@@ -31,11 +32,21 @@ namespace {
         return "Available virtual amiibos (" + std::to_string(g_virtual_amiibo_count) + ")";
     }
 
-    inline std::string MakeActiveAmiiboText() {
+    inline std::string MakeActiveAmiiboDirectoryText() {
+        std::string msg = "";
         if(g_active_amiibo_valid) {
-            return g_active_amiibo_data.name;
+            std::filesystem::path path = g_active_amiibo_data.path;
+            msg = path.parent_path().filename();
         }
-        return "No active virtual amiibo";
+        return msg;
+    }
+
+    inline std::string MakeActiveAmiiboText() {
+        std::string msg = "No active virtual amiibo";
+        if(g_active_amiibo_valid) {
+            msg = g_active_amiibo_data.name;
+        }
+        return msg;
     }
 
     inline std::string MakeTitleText() {
@@ -91,6 +102,17 @@ namespace {
         return msg;
     }
 
+    inline std::string MakeGameInterceptedText() {
+        std::string msg = "";
+        if(g_current_app_intercepted) {
+            msg += "intercepted";
+        }
+        else {
+            msg += "not intercepted.";
+        }
+        return msg;
+    }
+
     inline std::string MakeActiveAmiiboStatusText() {
         std::string msg = "";
         if(!g_active_amiibo_valid) {
@@ -120,12 +142,14 @@ namespace {
 class EmuiiboGui : public tsl::Gui {
 
     private:
+        tsl::elm::CategoryHeader *amiibo_dir_header;
         tsl::elm::SmallListItem *amiibo_header;
         tsl::elm::DoubleSectionOverlayFrame *root_frame;
         tsl::elm::NamedStepTrackBar *toggle_item = new tsl::elm::NamedStepTrackBar("\u22EF", { "Off", "On" });
+        tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("Current game is");
         
     public:
-        EmuiiboGui() : amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), MakeAvailableAmiibosText(), tsl::SectionsLayout::big_bottom, true)) {}
+        EmuiiboGui() : amiibo_dir_header(new tsl::elm::CategoryHeader(MakeActiveAmiiboDirectoryText())), amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), MakeAvailableAmiibosText(), tsl::SectionsLayout::same, true)) {}
 
         virtual tsl::elm::Element *createUI() override {
             auto top_list = new tsl::elm::List();
@@ -145,7 +169,7 @@ class EmuiiboGui : public tsl::Gui {
                         }
                     }    
                 });
-                
+
                 amiibo_header->setClickListener([&](u64 keys) { 
                     if(keys & KEY_A) {
                         if(g_active_amiibo_valid) {
@@ -171,8 +195,9 @@ class EmuiiboGui : public tsl::Gui {
 
                 top_list->addItem(new tsl::elm::CategoryHeader("emulation status"));
                 top_list->addItem(toggle_item);
+                top_list->addItem(game_header);
+                top_list->addItem(amiibo_dir_header);
                 top_list->addItem(amiibo_header);
-
 
                 u32 count = 0;
                 // Reset the internal iterator, to start from the beginning
@@ -187,32 +212,10 @@ class EmuiiboGui : public tsl::Gui {
                     auto *item = new tsl::elm::SmallListItem(data.name);
                     item->setClickListener([id, this](u64 keys) {
                         if(keys & KEY_A) {
-                            /* NO NEED TO CHANGE AMIIBO STATUS HERE
-                            if(g_active_amiibo_valid) {
-                                if(g_active_amiibo_id.Equals(id)) {
-                                    // User selected the active amiibo, so let's change connection then
-                                    auto status = emu::GetActiveVirtualAmiiboStatus();
-                                    switch(status) {
-                                        case emu::VirtualAmiiboStatus::Connected: {
-                                            emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                            root_frame->setSubtitle(MakeStatusText());
-                                            break;
-                                        }
-                                        case emu::VirtualAmiiboStatus::Disconnected: {
-                                            emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                            root_frame->setSubtitle(MakeStatusText());
-                                            break;
-                                        }
-                                        default:
-                                            break;
-                                    }
-                                    return true;
-                                }
-                            }
-                            */
                             // Set active amiibo and update our active amiibo value
                             emu::SetActiveVirtualAmiibo(const_cast<emu::VirtualAmiiboId*>(&id));
                             UpdateActiveAmiibo();
+
                             return true;   
                         }
                         return false;
@@ -264,8 +267,11 @@ class EmuiiboGui : public tsl::Gui {
 
         virtual void update() override {
             root_frame->setSubtitle(MakeAvailableAmiibosText());
+            //UpdateCurrentApplicationIntercepted();
+            game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
+            amiibo_dir_header->setText(MakeActiveAmiiboDirectoryText());
             amiibo_header->setText(MakeActiveAmiiboText());
-            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected?tsl::style::color::ColorWarning:tsl::style::color::ColorHighlight);
+            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
             u8 toggle_progress;
             switch(emu::GetEmulationStatus()) {
                 case emu::EmulationStatus::On:
