@@ -158,7 +158,6 @@ class AmiiboList : public tsl::Gui {
                 // Set active amiibo and update our active amiibo value
                 emu::SetActiveVirtualAmiibo(amiibo_path, FS_MAX_PATH);
                 UpdateActiveAmiibo();
-                amiibo_header->setText(MakeActiveAmiiboText());
                 return true;   
             }
             return false;
@@ -197,6 +196,29 @@ class AmiiboList : public tsl::Gui {
                 }
             });
 
+            root_frame->setClickListener([&](u64 keys) { 
+                if(keys & KEY_RSTICK) {
+                    if(IsActiveAmiiboValid()) {
+                        // User selected the active amiibo, so let's change connection then
+                        auto status = emu::GetActiveVirtualAmiiboStatus();
+                        switch(status) {
+                            case emu::VirtualAmiiboStatus::Connected: {
+                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
+                                break;
+                            }
+                            case emu::VirtualAmiiboStatus::Disconnected: {
+                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
+                                break;
+                            }
+                            default:
+                                break;
+                        }
+                        return true;
+                    }
+                }
+                return false;
+            });
+
             top_list->addItem(new tsl::elm::CategoryHeader("emulation status"));
             top_list->addItem(game_header);
             top_list->addItem(amiibo_header);
@@ -214,6 +236,9 @@ class AmiiboList : public tsl::Gui {
         virtual void update() override {
             UpdateCurrentApplicationIntercepted();
             this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
+            this->amiibo_header->setText(MakeActiveAmiiboText());
+            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+            
         }
 
 };
@@ -386,7 +411,6 @@ class MainGui : public tsl::Gui {
                             default:
                                 break;
                         }
-                        Refresh();
                         return true;
                     }
                 }
