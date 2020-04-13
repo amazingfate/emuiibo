@@ -3,19 +3,6 @@
 
 namespace amiibo {
 
-    VirtualAmiiboData IVirtualAmiiboBase::ProduceData() {
-        VirtualAmiiboData data = {};
-        data.uuid = this->GetUuidInfo();
-        auto name = this->GetName();
-        strncpy(data.name, name.c_str(), 40);
-        auto path = this->GetPath();
-        strncpy(data.path, path.c_str(), FS_MAX_PATH - 1);
-        data.first_write_date = this->GetFirstWriteDate();
-        data.last_write_date = this->GetLastWriteDate();
-        data.mii_charinfo = this->ReadMiiCharInfo();
-        return data;
-    }
-
     void VirtualAmiibo::Save() {
         fs::CreateDirectory(this->path);
         auto amiibo_flag = fs::Concat(this->path, "amiibo.flag");
@@ -195,6 +182,17 @@ namespace amiibo {
         return info;
     }
 
+    VirtualAmiiboData VirtualAmiibo::ProduceData() {
+        VirtualAmiiboData data = {};
+        data.uuid = this->GetUuidInfo();
+        auto name = this->GetName();
+        strncpy(data.name, name.c_str(), 40);
+        data.first_write_date = this->GetFirstWriteDate();
+        data.last_write_date = this->GetLastWriteDate();
+        data.mii_charinfo = this->ReadMiiCharInfo();
+        return data;
+    }
+
     VirtualAmiiboV3::VirtualAmiiboV3(const std::string &amiibo_dir) : IVirtualAmiiboBase(amiibo_dir) {
         this->tag_data = fs::LoadJSONFile(this->GetJSONFileName("tag"));
         this->register_data = fs::LoadJSONFile(this->GetJSONFileName("register"));
@@ -260,6 +258,10 @@ namespace amiibo {
     }
 
     VirtualBinAmiibo::VirtualBinAmiibo(const std::string &path) : IVirtualAmiiboBase(path) {
+        if(fs::GetFileSize(this->path) < sizeof(RawAmiibo)) {
+            this->valid = false;
+            return;
+        }
         this->raw_data = fs::Read<RawAmiibo>(this->path);
         this->base_date = this->MakeCurrentDate();
     }

@@ -25,7 +25,7 @@ namespace result {
         static constexpr u32 Module = 352; // Like emuiibo's program ID (0100000000000352)
 
         EMU_DEFINE_RESULT(NoActiveVirtualAmiibo, 1)
-        EMU_DEFINE_RESULT(InvalidVirtualAmiiboId, 2)
+        EMU_DEFINE_RESULT(InvalidVirtualAmiibo, 2)
         EMU_DEFINE_RESULT(IteratorEndReached, 3)
         EMU_DEFINE_RESULT(UnableToReadMii, 4)
 

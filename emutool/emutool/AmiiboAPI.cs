@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
-using System.Windows.Forms;
 
 namespace emutool
 {
@@ -72,7 +71,6 @@ namespace emutool
             try
             {
                 var json = JObject.Parse(new WebClient().DownloadString(AmiiboAPIURL));
-
                 foreach(var entry in json["amiibo"])
                 {
                     var amiibo = new Amiibo

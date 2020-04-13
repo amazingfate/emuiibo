@@ -135,9 +135,11 @@ namespace emutool
         {
             ExceptionUtils.Unless(api_amiibo != null, "Invalid input amiibo");
 
-            var amiibo = new Amiibo();
-            amiibo.OriginalAmiibo = api_amiibo;
-            
+            var amiibo = new Amiibo
+            {
+                OriginalAmiibo = api_amiibo,
+            };
+
             try
             {
                 amiibo.Name = name;

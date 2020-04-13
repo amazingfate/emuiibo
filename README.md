@@ -25,6 +25,8 @@ emuiibo comes bundled with a Tesla overlay to control it quite easily, but tools
 
 - Virtual amiibos go inside `sd:/emuiibo/amiibo`. For instance, an amiibo named `MyMario` would be `sd:/emuiibo/amiibo/MyMario/<amiibo content>`.
 
+- However, categories are supported by placing amiibos inside sub-directories (only inside a directory, like 3DS menu categories inside categories are not supported) - for instance: `sd:/emuiibo/amiibo/SSBU/Yoshi` would be a `Yoshi` amiibo inside `SSBU` category.
+
 - A virtual amiibo is detected by emuiibo based on two aspects: a `amiibo.json` and a `amiibo.flag` fioe must exist inside the virtual amiibo's folder mentioned above. If you would like to disable a virtual amiibo from being recognised by emuiibo, just remove the flag file, and create it again to enable it.
 
 - Every time the console is booted, emuiibo saves all the miis inside the console to the SD card. Format is `sd:/emuiibo/miis/<index> - <name>/mii-charinfo.bin`.
@@ -87,9 +89,9 @@ An access ID is a unique ID/number each game has for amiibo savedata, used to ch
 
 - Splatoon 2: 0x10162B00
 
-**NOTE**: if anyone is willing to make savedata editors for this amiibo saves, I'm pretty sure it would be extremely helpful for many users.
+- Breath of the Wild: 0x1019C800
 
-> TODO: extend this documentation a little bit more (random UUID, amiibo structure...)
+**NOTE**: if anyone is willing to make savedata editors for this amiibo saves, I'm pretty sure it would be extremely helpful for many users.
 
 ## Credits
 
@@ -103,7 +105,7 @@ An access ID is a unique ID/number each game has for amiibo savedata, used to ch
 
 - **AD2076** for helping with the tesla overlay.
 
-- **Thog** and **Ryujinx** devs for reversing mii services and various of its types.
+- **Thog** / **Ryujinx** devs for reversing mii services and various of its types.
 
 - **Citra** devs for several amiibo formats used in 3DS systems.
 

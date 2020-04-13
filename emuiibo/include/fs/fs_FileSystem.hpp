@@ -148,7 +148,7 @@ namespace fs {
     }
 
     #define FS_FOR(path, entry_v, path_v, ...) { \
-        auto dir = opendir(path.c_str()); \
+        auto dir = opendir((path).c_str()); \
         if(dir) { \
             while(true) { \
                 auto dt = readdir(dir); \
@@ -156,9 +156,10 @@ namespace fs {
                     break; \
                 } \
                 std::string entry_v = dt->d_name; \
-                auto path_v = fs::Concat(path, entry_v); \
+                auto path_v = fs::Concat((path), entry_v); \
                 __VA_ARGS__ \
             } \
+            closedir(dir); \
         } \
     }
 

@@ -12,28 +12,17 @@ namespace amiibo {
         u8 uuid[10];
     };
 
-    // This is the amiibo ID format sent by IPC
-
-    struct VirtualAmiiboId {
-        static constexpr u32 IdSize = SHA256_HASH_SIZE / 2;
-
-        u8 id[IdSize];
-
-        inline constexpr bool Equals(VirtualAmiiboId id) {
-            return memcmp(this->id, id.id, IdSize) == 0;
-        }
-    };
+    // This is the amiibo data sent by IPC
 
     struct VirtualAmiiboData : public ams::sf::LargeData {
         AmiiboUuidInfo uuid;
         char name[40 + 1];
-        char path[FS_MAX_PATH];
         Date first_write_date;
         Date last_write_date;
         CharInfo mii_charinfo;
 
         inline bool IsValid() {
-            return strlen(this->name) && strlen(this->path);
+            return strlen(this->name);
         }
 
     };
@@ -119,19 +108,6 @@ namespace amiibo {
 
             inline bool IsValid() {
                 return this->valid;
-            }
-
-            VirtualAmiiboData ProduceData();
-
-            inline VirtualAmiiboId ProduceId() {
-                // The "ID" used for IPC is, basically, the first half of the SHA256 hash on the amiibo's path
-                u8 full_hash[SHA256_HASH_SIZE] = {0};
-                char hash_path[FS_MAX_PATH] = {0};
-                strncpy(hash_path, this->path.c_str(), FS_MAX_PATH - 1);
-                sha256CalculateHash(full_hash, hash_path, FS_MAX_PATH);
-                VirtualAmiiboId id = {};
-                memcpy(id.id, full_hash, VirtualAmiiboId::IdSize);
-                return id;
             }
 
     };
@@ -234,6 +210,8 @@ namespace amiibo {
             ModelInfo ProduceModelInfo();
             CommonInfo ProduceCommonInfo();
 
+            VirtualAmiiboData ProduceData();
+
             inline AreaManager &GetAreaManager() {
                 return this->area_manager;
             }
@@ -335,7 +313,7 @@ namespace amiibo {
             // This two also validate that the amiibo contents are correct
 
             template<typename V>
-            static inline bool IsValidVirtualAmiibo(const std::string &amiibo_path) {
+            static inline bool IsValidVirtualAmiiboType(const std::string &amiibo_path) {
                 static_assert(std::is_base_of_v<IVirtualAmiiboBase, V>, "Invalid amiibo type");
                 if(IsValidVirtualAmiiboImpl<V>(amiibo_path)) {
                     V amiibo(amiibo_path);
@@ -344,11 +322,13 @@ namespace amiibo {
                 return false;
             }
 
-            template<typename V>
-            static inline bool GetValidVirtualAmiibo(const std::string &amiibo_path, V &out_amiibo) {
-                static_assert(std::is_base_of_v<IVirtualAmiiboBase, V>, "Invalid amiibo type");
-                if(IsValidVirtualAmiiboImpl<V>(amiibo_path)) {
-                    out_amiibo = V(amiibo_path);
+            static inline bool IsValidVirtualAmiibo(const std::string &amiibo_path) {
+                return IsValidVirtualAmiiboType<VirtualAmiibo>(amiibo_path);
+            }
+
+            static inline bool GetValidVirtualAmiibo(const std::string &amiibo_path, VirtualAmiibo &out_amiibo) {
+                if(IsValidVirtualAmiiboImpl<VirtualAmiibo>(amiibo_path)) {
+                    out_amiibo = VirtualAmiibo(amiibo_path);
                     return out_amiibo.IsValid();
                 }
                 return false;

@@ -7,14 +7,6 @@
 
 namespace emu {
 
-    struct VirtualAmiiboId {
-        u8 id[0x10];
-
-        inline constexpr bool Equals(VirtualAmiiboId id) {
-            return memcmp(this->id, id.id, 0x10) == 0;
-        }
-    };
-
     struct VirtualAmiiboUuidInfo {
         bool random_uuid;
         u8 uuid[10];
@@ -29,13 +21,12 @@ namespace emu {
     struct VirtualAmiiboData {
         VirtualAmiiboUuidInfo uuid;
         char name[40 + 1];
-        char path[FS_MAX_PATH];
         VirtualAmiiboDate first_write_date;
         VirtualAmiiboDate last_write_date;
         NfpMiiCharInfo mii_charinfo;
 
         inline bool IsValid() {
-            return strlen(this->name) && strlen(this->path);
+            return strlen(this->name);
         }
 
     };
@@ -65,20 +56,21 @@ namespace emu {
 
     Version GetVersion();
 
+    void GetVirtualAmiiboDirectory(char *out_path, size_t out_path_size);
+
     EmulationStatus GetEmulationStatus();
     void SetEmulationStatus(EmulationStatus status);
 
-    Result GetActiveVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data);
-    Result SetActiveVirtualAmiibo(VirtualAmiiboId *amiibo_id);
+    Result GetActiveVirtualAmiibo(VirtualAmiiboData *out_amiibo_data, char *out_path, size_t out_path_size);
+    Result SetActiveVirtualAmiibo(char *path, size_t path_size);
     void ResetActiveVirtualAmiibo();
 
     VirtualAmiiboStatus GetActiveVirtualAmiiboStatus();
     void SetActiveVirtualAmiiboStatus(VirtualAmiiboStatus status);
 
-    Result ReadNextAvailableVirtualAmiibo(VirtualAmiiboId *out_amiibo_id, VirtualAmiiboData *out_amiibo_data);
-    void ResetAvailableVirtualAmiiboIterator();
-
     void IsApplicationIdIntercepted(u64 app_id, bool *out_intercepted);
     void IsCurrentApplicationIdIntercepted(bool *out_intercepted);
+
+    Result TryParseVirtualAmiibo(char *path, size_t path_size, VirtualAmiiboData *out_amiibo_data);
 
 }
