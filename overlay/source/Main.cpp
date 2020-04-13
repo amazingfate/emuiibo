@@ -141,6 +141,7 @@ class AmiiboList : public tsl::Gui {
     private:
         tsl::elm::DoubleSectionOverlayFrame *root_frame;
         tsl::elm::BigCategoryHeader *category_header;
+        tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("Current game is");
         tsl::elm::SmallListItem *count_item;
         tsl::elm::SmallListItem *amiibo_header;
         tsl::elm::List *top_list;
@@ -148,7 +149,7 @@ class AmiiboList : public tsl::Gui {
         std::string amiibo_path;
 
     public:
-        AmiiboList(const std::string &path) : root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::big_bottom, true)), amiibo_path(path) {}
+        AmiiboList(const std::string &path) : root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::same, true)), amiibo_path(path) {}
 
         bool OnItemClick(u64 keys, const std::string &path) {
             if(keys & KEY_A) {
@@ -196,7 +197,8 @@ class AmiiboList : public tsl::Gui {
                 }
             });
 
-            top_list->addItem(new tsl::elm::CategoryHeader("selected amiibo"));
+            top_list->addItem(new tsl::elm::CategoryHeader("emulation status"));
+            top_list->addItem(game_header);
             top_list->addItem(amiibo_header);
 
             top_list->addItem(category_header);
@@ -211,6 +213,7 @@ class AmiiboList : public tsl::Gui {
 
         virtual void update() override {
             UpdateCurrentApplicationIntercepted();
+            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
         }
 
 };
@@ -225,7 +228,7 @@ class MainGui : public tsl::Gui {
         tsl::elm::DoubleSectionOverlayFrame *root_frame;
         
     public:
-        MainGui() : amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), category_header(new tsl::elm::SmallListItem("Categories")), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::big_top, true)) {}
+        MainGui() : amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), category_header(new tsl::elm::SmallListItem("Categories")), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::same, true)) {}
 
         void Refresh() {
             this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
@@ -357,7 +360,7 @@ class MainGui : public tsl::Gui {
                 top_list->addItem(new tsl::elm::CategoryHeader("emulation status"));
                 top_list->addItem(toggle_item);
                 top_list->addItem(game_header);
-                top_list->addItem(new tsl::elm::CategoryHeader("amiibo selection"));
+                //top_list->addItem(new tsl::elm::CategoryHeader("amiibo selection"));
                 top_list->addItem(amiibo_header);
                 category_header->setValue(std::to_string(count), true);
                 top_list->addItem(category_header);
