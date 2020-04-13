@@ -3,12 +3,12 @@
 #include <emuiibo.hpp>
 #include <libtesla_ext.hpp>
 #include <dirent.h>
+#include <filesystem>
 
 namespace {
 
     bool g_emuiibo_init_ok = false;
     bool g_category_list_update_flag = false;
-    bool g_main_update_flag = false;
     bool g_current_app_intercepted = false;
     char g_emuiibo_amiibo_dir[FS_MAX_PATH];
     emu::Version g_emuiibo_version;
@@ -37,7 +37,7 @@ namespace {
 
     inline std::string MakeActiveAmiiboText() {
         if(IsActiveAmiiboValid()) {
-            return std::string("Active virtual amiibo: ") + g_active_amiibo_data.name;
+            return g_active_amiibo_data.name;
         }
         return "No active virtual amiibo";
     }
@@ -107,21 +107,30 @@ namespace {
 
     inline std::string MakeActiveAmiiboStatusText() {
         std::string msg = "";
-        auto v_status = emu::GetActiveVirtualAmiiboStatus();
-        switch(v_status) {
-            case emu::VirtualAmiiboStatus::Invalid: {
-                msg = "";
-                break;
-            }
-            case emu::VirtualAmiiboStatus::Connected: {
-                msg = "connected";
-                break;
-            }
-            case emu::VirtualAmiiboStatus::Disconnected: {
-                msg = "disconnected";
-                break;
+        if(IsActiveAmiiboValid()) {
+            auto v_status = emu::GetActiveVirtualAmiiboStatus();
+            switch(v_status) {
+                case emu::VirtualAmiiboStatus::Invalid: {
+                    msg = "";
+                    break;
+                }
+                case emu::VirtualAmiiboStatus::Connected: {
+                    msg = "connected";
+                    break;
+                }
+                case emu::VirtualAmiiboStatus::Disconnected: {
+                    msg = "disconnected";
+                    break;
+                }
             }
         }
+        return msg;
+    }
+
+    inline std::string MakeCategoryText(std::string category_path) {
+        std::string msg = "";
+        std::filesystem::path path = category_path;
+        msg = path.filename();
         return msg;
     }
 
@@ -131,53 +140,36 @@ class AmiiboList : public tsl::Gui {
 
     private:
         tsl::elm::DoubleSectionOverlayFrame *root_frame;
-        tsl::elm::BigCategoryHeader *selected_header;
-        tsl::elm::CategoryHeader *count_header;
-        tsl::elm::List *list;
-        tsl::elm::List *header_list;
+        tsl::elm::BigCategoryHeader *category_header;
+        tsl::elm::SmallListItem *count_item;
+        tsl::elm::SmallListItem *amiibo_header;
+        tsl::elm::List *top_list;
+        tsl::elm::List *bottom_list;
         std::string amiibo_path;
 
     public:
-        AmiiboList(const std::string &path) : root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), MakeStatusText(), tsl::SectionsLayout::big_bottom, true)), amiibo_path(path) {}
+        AmiiboList(const std::string &path) : root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::big_bottom, true)), amiibo_path(path) {}
 
         bool OnItemClick(u64 keys, const std::string &path) {
             if(keys & KEY_A) {
                 char amiibo_path[FS_MAX_PATH] = {0};
                 strcpy(amiibo_path, path.c_str());
-                if(IsActiveAmiiboValid()) {
-                    if(strcmp(g_active_amiibo_path, amiibo_path) == 0) {
-                        // User selected the active amiibo, so let's change connection then
-                        auto status = emu::GetActiveVirtualAmiiboStatus();
-                        switch(status) {
-                            case emu::VirtualAmiiboStatus::Connected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                root_frame->setSubtitle(MakeStatusText());
-                                break;
-                            }
-                            case emu::VirtualAmiiboStatus::Disconnected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                root_frame->setSubtitle(MakeStatusText());
-                                break;
-                            }
-                            default:
-                                break;
-                        }
-                        return true;
-                    }
-                }
                 // Set active amiibo and update our active amiibo value
-                emu::SetActiveVirtualAmiibo(amiibo_path&, FS_MAX_PATH);
+                emu::SetActiveVirtualAmiibo(amiibo_path, FS_MAX_PATH);
                 UpdateActiveAmiibo();
-                selected_header->setText(MakeActiveAmiiboText());
-                root_frame->setSubtitle(MakeStatusText());
+                amiibo_header->setText(MakeActiveAmiiboText());
                 return true;   
             }
             return false;
         }
 
         virtual tsl::elm::Element *createUI() override {
-            list = new tsl::elm::List();
-            header_list = new tsl::elm::List();
+            top_list = new tsl::elm::List();
+            bottom_list = new tsl::elm::List();
+            amiibo_header = new tsl::elm::SmallListItem(MakeActiveAmiiboText());
+            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+            category_header = new tsl::elm::BigCategoryHeader(MakeCategoryText(amiibo_path)); 
+            count_item = new tsl::elm::SmallListItem("available virtual amiibos");
 
             u32 count = 0;
             tsl::hlp::doWithSDCardHandle([&](){
@@ -196,7 +188,7 @@ class AmiiboList : public tsl::Gui {
                         if(R_SUCCEEDED(emu::TryParseVirtualAmiibo(path, FS_MAX_PATH, &data))) {
                             auto item = new tsl::elm::SmallListItem(data.name);
                             item->setClickListener(std::bind(&AmiiboList::OnItemClick, this, std::placeholders::_1, str_path));
-                            list->addItem(item);
+                            bottom_list->addItem(item);
                             count++;
                         }
                     }
@@ -204,130 +196,51 @@ class AmiiboList : public tsl::Gui {
                 }
             });
 
-            selected_header = new tsl::elm::BigCategoryHeader(MakeActiveAmiiboText(), true);
-            count_header = new tsl::elm::CategoryHeader("Available virtual amiibos (" + std::to_string(count) + ")", true);
+            top_list->addItem(new tsl::elm::CategoryHeader("selected amiibo"));
+            top_list->addItem(amiibo_header);
 
-            header_list->addItem(selected_header);
-            header_list->addItem(count_header);
+            top_list->addItem(category_header);
 
-            root_frame->setTopSection(header_list);
-            root_frame->setBottomSection(list);
+            count_item->setValue(std::to_string(count), true);
+            top_list->addItem(count_item);
+
+            root_frame->setTopSection(top_list);
+            root_frame->setBottomSection(bottom_list);
             return root_frame;
         }
 
         virtual void update() override {
-            if(UpdateCurrentApplicationIntercepted()) {
-                root_frame->setSubtitle(MakeStatusText());
-            }
+            UpdateCurrentApplicationIntercepted();
         }
 
 };
-/*
-class CategoryList : public tsl::Gui {
 
-    private:
-        tsl::elm::DoubleSectionOverlayFrame *root_frame;
-        tsl::elm::BigCategoryHeader *selected_header;
-        tsl::elm::CategoryHeader *count_header;
-        tsl::elm::List *list;
-        tsl::elm::List *header_list;
-
-    public:
-        CategoryList() : root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), MakeStatusText())), selected_header(new tsl::elm::BigCategoryHeader(MakeActiveAmiiboText(), true)) {}
-
-        void Refresh() {
-            this->root_frame->setSubtitle(MakeStatusText());
-            this->selected_header->setText(MakeActiveAmiiboText());
-        }
-
-        static bool OnItemClick(u64 keys, const std::string &path) {
-            if(keys & KEY_A) {
-                tsl::changeTo<AmiiboList>(path);
-                g_category_list_update_flag = true;
-                return true;
-            }
-            return false;
-        }
-
-        virtual tsl::elm::Element *createUI() override {
-            this->list = new tsl::elm::List();
-            this->header_list = new tsl::elm::List();
-
-            // Root
-            auto root_item = new tsl::elm::SmallListItem("<root>");
-            root_item->setClickListener(std::bind(&CategoryList::OnItemClick, std::placeholders::_1, g_emuiibo_amiibo_dir));
-            this->list->addItem(root_item);
-
-            u32 count = 1; // Root
-            tsl::hlp::doWithSDCardHandle([&](){
-                auto dir = opendir(g_emuiibo_amiibo_dir);
-                if(dir) {
-                    while(true) {
-                        auto entry = readdir(dir);
-                        if(entry == nullptr) {
-                            break;
-                        }
-                        char path[FS_MAX_PATH] = {0};
-                        auto str_path = std::string(g_emuiibo_amiibo_dir) + "/" + entry->d_name;
-                        strcpy(path, str_path.c_str());
-                        // If it's a valid amiibo, skip
-                        emu::VirtualAmiiboData tmp_data;
-                        if(R_SUCCEEDED(emu::TryParseVirtualAmiibo(path, FS_MAX_PATH, &tmp_data))) {
-                            continue;
-                        }
-                        if(entry->d_type & DT_DIR) {
-                            auto item = new tsl::elm::SmallListItem(entry->d_name);
-                            item->setClickListener(std::bind(&CategoryList::OnItemClick, std::placeholders::_1, str_path));
-                            this->list->addItem(item);
-                            count++;
-                        }
-                    }
-                    closedir(dir);
-                }
-            });
-
-            this->count_header = new tsl::elm::CategoryHeader("Available categories (" + std::to_string(count) + ")", true);
-
-            header_list->addItem(this->selected_header);
-            header_list->addItem(this->count_header);
-
-            this->root_frame->setTopSection(this->header_list);
-            this->root_frame->setBottomSection(list);
-            return this->root_frame;
-        }
-
-        virtual void update() override {
-            bool upd = false;
-            if(g_category_list_update_flag) {
-                upd = true;
-                g_category_list_update_flag = false;
-            }
-            if(UpdateCurrentApplicationIntercepted()) {
-                upd = true;
-            }
-            if(upd) {
-                this->Refresh();
-            }
-        }
-
-};
-*/
 class MainGui : public tsl::Gui {
 
     private:
-        tsl::elm::SmallListItem *category_header;
-        tsl::elm::DoubleSectionOverlayFrame *root_frame;
         tsl::elm::NamedStepTrackBar *toggle_item = new tsl::elm::NamedStepTrackBar("\u22EF", { "Off", "On" });
         tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("Current game is");
+        tsl::elm::SmallListItem *amiibo_header;
+        tsl::elm::SmallListItem *category_header;
+        tsl::elm::DoubleSectionOverlayFrame *root_frame;
         
     public:
-        MainGui() : category_header(new tsl::elm::SmallListItem("Categories")), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), MakeStatusText(), tsl::SectionsLayout::same, true)) {}
-
-        //MainGui() : category_header(new tsl::elm::BigCategoryHeader(MakeActiveAmiiboText(), true)), root_frame(new tsl::elm::OverlayFrame(MakeTitleText(), MakeStatusText())) {}
+        MainGui() : amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), category_header(new tsl::elm::SmallListItem("Categories")), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::big_top, true)) {}
 
         void Refresh() {
-            this->root_frame->setSubtitle(MakeStatusText());
-            this->category_header->setText(MakeActiveAmiiboText());
+            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
+            this->amiibo_header->setText(MakeActiveAmiiboText());
+            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+            u8 toggle_progress;
+            switch(emu::GetEmulationStatus()) {
+                case emu::EmulationStatus::On:
+                    toggle_progress = 1;
+                    break;
+                case emu::EmulationStatus::Off:
+                    toggle_progress = 0;
+                    break;
+            }
+            this->toggle_item->setProgress(toggle_progress);
         }
 
         static bool OnItemClick(u64 keys, const std::string &path) {
@@ -364,13 +277,6 @@ class MainGui : public tsl::Gui {
                         return true;
                     }
                 }
-                // Set active amiibo and update our active amiibo value
-                /*
-                emu::SetActiveVirtualAmiibo(amiibo_path&, FS_MAX_PATH);
-                UpdateActiveAmiibo();
-                selected_header->setText(MakeActiveAmiiboText());
-                root_frame->setSubtitle(MakeStatusText());
-                */
                 return true;   
             }
             return false;
@@ -396,7 +302,24 @@ class MainGui : public tsl::Gui {
                     }    
                 });
 
-                category_header->setClickListener(std::bind(&MainGui::OnAmiiboHeaderClick, std::placeholders::_1, g_emuiibo_amiibo_dir));
+                /*
+                u8 toggle_progress;
+                switch(emu::GetEmulationStatus()) {
+                    case emu::EmulationStatus::On:
+                        toggle_progress = 1;
+                        break;
+                    case emu::EmulationStatus::Off:
+                        toggle_progress = 0;
+                        break;
+                }
+                toggle_item->setProgress(toggle_progress);
+
+                game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
+
+                amiibo_header->setText(MakeActiveAmiiboText());
+                amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+                */
+                amiibo_header->setClickListener(std::bind(&MainGui::OnAmiiboHeaderClick, this, std::placeholders::_1, g_emuiibo_amiibo_dir));
 
                 // Root
                 auto root_item = new tsl::elm::SmallListItem("<root>");
@@ -434,7 +357,9 @@ class MainGui : public tsl::Gui {
                 top_list->addItem(new tsl::elm::CategoryHeader("emulation status"));
                 top_list->addItem(toggle_item);
                 top_list->addItem(game_header);
-                category_header->setValue(std::to_string(count));
+                top_list->addItem(new tsl::elm::CategoryHeader("amiibo selection"));
+                top_list->addItem(amiibo_header);
+                category_header->setValue(std::to_string(count), true);
                 top_list->addItem(category_header);
             }
             else {
@@ -458,6 +383,7 @@ class MainGui : public tsl::Gui {
                             default:
                                 break;
                         }
+                        Refresh();
                         return true;
                     }
                 }
@@ -478,17 +404,8 @@ class MainGui : public tsl::Gui {
         }
 
         virtual void update() override {
-            bool upd = false;
-            if(g_main_update_flag) {
-                upd = true;
-                g_main_update_flag = false;
-            }
-            if(UpdateCurrentApplicationIntercepted()) {
-                upd = true;
-            }
-            if(upd) {
-                this->Refresh();
-            }
+            UpdateCurrentApplicationIntercepted();
+            this->Refresh();
         }
 
 };
