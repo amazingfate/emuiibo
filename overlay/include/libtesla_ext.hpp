@@ -49,6 +49,44 @@ namespace tsl {
             bool m_hasSeparator;
         };
 
+        class CustomCategoryHeader : public ListItem {
+        public:
+            CustomCategoryHeader(const std::string &title, bool hasSeparator = false, bool alwaysSmall = false) : ListItem(title), m_hasSeparator(hasSeparator), m_alwaysSmall(alwaysSmall) {}
+            virtual ~CustomCategoryHeader() {}
+
+            virtual void draw(gfx::Renderer *renderer) override {
+                renderer->drawRect(this->getX() - 2, ELEMENT_BOTTOM_BOUND(this) - 30, 5, 23, a(tsl::style::color::ColorHeaderBar));
+                renderer->drawString(this->m_text.c_str(), false, this->getX() + 13, ELEMENT_BOTTOM_BOUND(this) - 12, 15, a(tsl::style::color::ColorText));
+
+                if (this->m_hasSeparator)
+                    renderer->drawRect(this->getX(), ELEMENT_BOTTOM_BOUND(this), this->getWidth(), 1, a(tsl::style::color::ColorFrame));
+            }
+
+            virtual void layout(u16 parentX, u16 parentY, u16 parentWidth, u16 parentHeight) override {
+                // Check if the CategoryHeader is part of a list and if it's the first entry in it, half it's height
+                if (List *list = dynamic_cast<List*>(this->getParent()); list != nullptr) {
+                    if (list->getIndexInList(this) == 0 || m_alwaysSmall) {
+                        this->setBoundaries(this->getX(), this->getY(), this->getWidth(), tsl::style::ListItemDefaultHeight / 2);
+                        return;
+                    }
+                }
+
+                this->setBoundaries(this->getX(), this->getY(), this->getWidth(), tsl::style::ListItemDefaultHeight);
+            }
+
+            virtual bool onClick(u64 keys) {
+                return false;
+            }
+
+            virtual Element* requestFocus(Element *oldFocus, FocusDirection direction) override {
+                return nullptr;
+            }
+
+        private:
+            bool m_hasSeparator;
+            bool m_alwaysSmall;
+        };
+
         class SmallListItem : public Element {
         public:
             /**
