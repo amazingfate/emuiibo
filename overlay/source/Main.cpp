@@ -140,7 +140,7 @@ namespace {
         return msg;
     }
 
-    inline void GetAndResizeImage(int new_height){
+    inline void GetAndResizeImage(int new_height) {
         if(IsActiveAmiiboValid()) {
             tsl::hlp::doWithSDCardHandle([new_height] {
                 std::string amiibo_png_path = g_active_amiibo_path;
@@ -149,7 +149,7 @@ namespace {
                 if (upng != NULL) {
                     upng_decode(upng);
                     std::string msg = "";
-                    switch(upng_get_error(upng)){
+                    switch(upng_get_error(upng)) {
                         case UPNG_EOK: {
                             int img_width = upng_get_width(upng);
                             int img_height = upng_get_height(upng);
@@ -160,14 +160,13 @@ namespace {
                             g_img_buffer = new unsigned char [new_width * new_height * img_depth];
                             g_img_width = new_width;
 
-                            for(int cy = 0; cy != new_height; ++cy)
-                            {
-                                for(int cx = 0; cx != new_width; ++cx)
-                                {
+                            for(int cy = 0; cy != new_height; ++cy) {
+                                for(int cx = 0; cx != new_width; ++cx) {
+                                    
                                     int pixel = (cy * (new_width *img_depth)) + (cx*img_depth);
                                     int nearestMatch =  (((int)(cy / scale) * (img_width *img_depth)) + ((int)(cx / scale) *img_depth) );
                                     
-                                    for(int c = 0; c < img_depth; c++){
+                                    for(int c = 0; c < img_depth; c++) {
                                         g_img_buffer[pixel + c] =  upng_get_buffer(upng)[nearestMatch + c];
                                     }
                                 }
