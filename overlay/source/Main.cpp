@@ -20,6 +20,7 @@ namespace {
     unsigned char *g_img_buffer;
     int g_img_width;
     bool g_current_img_ok = false;
+    std::string g_img_error_msg;
     upng_t* upng;
 
     inline bool IsActiveAmiiboValid() {
@@ -141,6 +142,8 @@ namespace {
     }
 
     inline void GetAndResizeImage(int new_height) {
+        g_current_img_ok = false;
+        g_img_error_msg = "";
         if(IsActiveAmiiboValid()) {
             tsl::hlp::doWithSDCardHandle([new_height] {
                 std::string amiibo_png_path = g_active_amiibo_path;
@@ -148,15 +151,14 @@ namespace {
                 upng = upng_new_from_file(amiibo_png_path.c_str());
                 if (upng != NULL) {
                     upng_decode(upng);
-                    std::string msg = "";
                     switch(upng_get_error(upng)) {
                         case UPNG_EOK: {
                             int img_width = upng_get_width(upng);
                             int img_height = upng_get_height(upng);
                             int img_depth = upng_get_bpp(upng)/8;
-                            delete[] g_img_buffer;
                             double scale = (double)new_height / (double)img_height;
                             int new_width = img_width*scale;
+                            delete[] g_img_buffer;
                             g_img_buffer = new unsigned char [new_width * new_height * img_depth];
                             g_img_width = new_width;
 
@@ -175,61 +177,41 @@ namespace {
                             break;
                         }
                         case UPNG_ENOMEM: {
-                            msg += "Out of memory";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "Image is too big.";
                             break;
                         }
                         case UPNG_ENOTFOUND: {
-                            msg += "Image not found";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "Image not found.";
                             break;
                         }
                         case UPNG_ENOTPNG: {
-                            msg += "Image is not a PNG)";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "Image is not a PNG.";
                             break;
                         }
                         case UPNG_EMALFORMED: {
-                            msg += "PNG malformed";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "PNG malformed.";
                             break;
                         }
                         case UPNG_EUNSUPPORTED: {
-                            msg += "PNG not supported";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "PNG not supported.";
                             break;
                         }
                         case UPNG_EUNINTERLACED: {
-                            msg += "image interlacing is not supported";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "Image interlacing is not supported.";
                             break;
                         }
                         case UPNG_EUNFORMAT: {
-                            msg += "image color format is not supported";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "Image color format is not supported.";
                             break;
                         }
                         case UPNG_EPARAM: {
-                            msg += "invalid parameter";
-                            delete[] g_img_buffer;
-                            g_current_img_ok = false;
+                            g_img_error_msg = "Invalid parameter.";
                             break;
                         }
                     }
                     upng_free(upng);
                 }
             });
-        } else {
-            delete[] g_img_buffer;
-            g_current_img_ok = false;
-
         }
     }
 
@@ -327,7 +309,7 @@ class AmiiboList : public tsl::Gui {
                 if(g_current_img_ok){
                     renderer->drawBitmap(x + 5, y + 5, g_img_width, 80, g_img_buffer);
                 } else {
-                    renderer->drawString("No image!", false, x + 15, y + 50, 15, renderer->a(tsl::style::color::ColorText));
+                    renderer->drawString(g_img_error_msg.c_str(), false, x + 15, y + 50, 15, renderer->a(tsl::style::color::ColorText));
                 }
             }), 90);
             top_list->addItem(amiibo_header);
@@ -476,12 +458,11 @@ class MainGui : public tsl::Gui {
                 top_list->addItem(toggle_item);
                 top_list->addItem(game_header);
                 top_list->addItem(new tsl::elm::CustomCategoryHeader("current amiibo",false,true));
-                GetAndResizeImage(80);
                 top_list->addItem(new tsl::elm::CustomDrawer([](tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
                     if(g_current_img_ok){
                         renderer->drawBitmap(x + 5, y + 5, g_img_width, 80, g_img_buffer);
                     } else {
-                        renderer->drawString("No image!", false, x + 15, y + 50, 15, renderer->a(tsl::style::color::ColorText));
+                        renderer->drawString(g_img_error_msg.c_str(), false, x + 15, y + 50, 15, renderer->a(tsl::style::color::ColorText));
                     }
                 }), 90);
                 top_list->addItem(amiibo_header);
@@ -549,6 +530,7 @@ class Overlay : public tsl::Overlay {
             });
             if(g_emuiibo_init_ok) {
                 UpdateActiveAmiibo();
+                GetAndResizeImage(80);
             }
         }
         
