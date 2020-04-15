@@ -6,6 +6,12 @@
 #define SECTION_SMALL_SIZE(height) ((height - 73 - 80) / 3)
 
 namespace tsl {
+    
+    namespace style {
+        namespace color {
+            constexpr u16 ColorWarning          = 0xF77F;
+        }
+    }
 
     enum class SectionsLayout{
         same,           //both sections have the same height top 1/2 : bottom 1/2
