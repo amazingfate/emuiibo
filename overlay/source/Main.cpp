@@ -1,7 +1,8 @@
 
 #define TESLA_INIT_IMPL
 #include <emuiibo.hpp>
-#include <libtesla_ext.hpp>
+#include <tesla.hpp>
+#include <tesla_extensions.hpp>
 #include <dirent.h>
 #include <filesystem>
 #include <upng.h>
@@ -245,17 +246,17 @@ namespace {
 class AmiiboList : public tsl::Gui {
 
     private:
-        tsl::elm::DoubleSectionOverlayFrame *root_frame;
-        tsl::elm::CustomCategoryHeader *category_header;
-        tsl::elm::SmallToggleListItem *toggle_item = new tsl::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
-        tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("current game is");
-        tsl::elm::SmallListItem *amiibo_header;
+        tslext::elm::DoubleSectionOverlayFrame *root_frame;
+        tslext::elm::CustomCategoryHeader *category_header;
+        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
+        tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
+        tslext::elm::SmallListItem *amiibo_header;
         tsl::elm::List *top_list;
         tsl::elm::List *bottom_list;
         std::string amiibo_path;
 
     public:
-        AmiiboList(const std::string &path) : root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::same, true)), amiibo_path(path) {}
+        AmiiboList(const std::string &path) : root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tslext::SectionsLayout::same, true)), amiibo_path(path) {}
 
         bool OnItemClick(u64 keys, const std::string &path) {
             if(keys & KEY_A) {
@@ -273,8 +274,8 @@ class AmiiboList : public tsl::Gui {
         virtual tsl::elm::Element *createUI() override {
             top_list = new tsl::elm::List();
             bottom_list = new tsl::elm::List();
-            amiibo_header = new tsl::elm::SmallListItem(MakeActiveAmiiboText());
-            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+            amiibo_header = new tslext::elm::SmallListItem(MakeActiveAmiiboText());
+            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
             
             u32 count = 0;
             tsl::hlp::doWithSDCardHandle([&](){
@@ -291,7 +292,7 @@ class AmiiboList : public tsl::Gui {
                         // Find virtual amiibo
                         emu::VirtualAmiiboData data = {};
                         if(R_SUCCEEDED(emu::TryParseVirtualAmiibo(path, FS_MAX_PATH, &data))) {
-                            auto item = new tsl::elm::SmallListItem(data.name);
+                            auto item = new tslext::elm::SmallListItem(data.name);
                             item->setClickListener(std::bind(&AmiiboList::OnItemClick, this, std::placeholders::_1, str_path));
                             bottom_list->addItem(item);
                             count++;
@@ -347,7 +348,7 @@ class AmiiboList : public tsl::Gui {
 
             top_list->addItem(toggle_item);
             top_list->addItem(game_header);
-            top_list->addItem(new tsl::elm::CustomCategoryHeader("current amiibo",false,true));
+            top_list->addItem(new tslext::elm::CustomCategoryHeader("current amiibo",false,true));
             top_list->addItem(new tsl::elm::CustomDrawer([](tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
                 if(g_current_img_ok){
                     renderer->drawBitmap(x + 5, y + 5, g_img_width, 80, g_img_buffer);
@@ -356,7 +357,7 @@ class AmiiboList : public tsl::Gui {
                 }
             }), 90);
             top_list->addItem(amiibo_header);
-            category_header = new tsl::elm::CustomCategoryHeader("available amiibos in " + MakeCategoryText(amiibo_path) + ": " + std::to_string(count), false, true); 
+            category_header = new tslext::elm::CustomCategoryHeader("available amiibos in " + MakeCategoryText(amiibo_path) + ": " + std::to_string(count), false, true); 
             top_list->addItem(category_header);
 
             root_frame->setTopSection(top_list);
@@ -366,9 +367,9 @@ class AmiiboList : public tsl::Gui {
 
         virtual void update() override {
             UpdateCurrentApplicationIntercepted();
-            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
+            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
             this->amiibo_header->setText(MakeActiveAmiiboText());
-            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
             this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);
         }
 
@@ -377,18 +378,18 @@ class AmiiboList : public tsl::Gui {
 class MainGui : public tsl::Gui {
 
     private:
-        tsl::elm::SmallToggleListItem *toggle_item = new tsl::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
-        tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("current game is");
-        tsl::elm::SmallListItem *amiibo_header;
-        tsl::elm::DoubleSectionOverlayFrame *root_frame;
+        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
+        tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
+        tslext::elm::SmallListItem *amiibo_header;
+        tslext::elm::DoubleSectionOverlayFrame *root_frame;
         
     public:
-        MainGui() : amiibo_header(new tsl::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tsl::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tsl::SectionsLayout::same, true)) {}
+        MainGui() : amiibo_header(new tslext::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tslext::SectionsLayout::same, true)) {}
 
         void Refresh() {
-            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tsl::style::color::ColorWarning);
+            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
             this->amiibo_header->setText(MakeActiveAmiiboText());
-            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tsl::style::color::ColorWarning : tsl::style::color::ColorHighlight);
+            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
             this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);   
         }
 
@@ -448,7 +449,7 @@ class MainGui : public tsl::Gui {
                 amiibo_header->setClickListener(std::bind(&MainGui::OnAmiiboHeaderClick, this, std::placeholders::_1, g_emuiibo_amiibo_dir));
 
                 // Root
-                auto root_item = new tsl::elm::SmallListItem("<root>");
+                auto root_item = new tslext::elm::SmallListItem("<root>");
                 root_item->setClickListener(std::bind(&MainGui::OnItemClick, std::placeholders::_1, g_emuiibo_amiibo_dir));
                 bottom_list->addItem(root_item);
 
@@ -470,7 +471,7 @@ class MainGui : public tsl::Gui {
                                 continue;
                             }
                             if(entry->d_type & DT_DIR) {
-                                auto item = new tsl::elm::SmallListItem(entry->d_name);
+                                auto item = new tslext::elm::SmallListItem(entry->d_name);
                                 item->setClickListener(std::bind(&MainGui::OnItemClick, std::placeholders::_1, str_path));
                                 bottom_list->addItem(item);
                                 count++;
@@ -482,7 +483,7 @@ class MainGui : public tsl::Gui {
 
                 top_list->addItem(toggle_item);
                 top_list->addItem(game_header);
-                top_list->addItem(new tsl::elm::CustomCategoryHeader("current amiibo",false,true));
+                top_list->addItem(new tslext::elm::CustomCategoryHeader("current amiibo",false,true));
                 top_list->addItem(new tsl::elm::CustomDrawer([](tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
                     if(g_current_img_ok){
                         renderer->drawBitmap(x + 5, y + 5, g_img_width, 80, g_img_buffer);
@@ -491,10 +492,10 @@ class MainGui : public tsl::Gui {
                     }
                 }), 90);
                 top_list->addItem(amiibo_header);
-                top_list->addItem(new tsl::elm::CustomCategoryHeader("available categories: " + std::to_string(count),false,true));
+                top_list->addItem(new tslext::elm::CustomCategoryHeader("available categories: " + std::to_string(count),false,true));
             }
             else {
-                top_list->addItem(new tsl::elm::BigCategoryHeader(MakeStatusText(), true));
+                top_list->addItem(new tslext::elm::BigCategoryHeader(MakeStatusText(), true));
             }
 
             toggle_item->setClickListener([&](u64 keys) {
@@ -553,7 +554,7 @@ class MainGui : public tsl::Gui {
 
 };
 
-class Overlay : public tsl::Overlay {
+class EmuiiboOverlay : public tsl::Overlay {
 
     public:
         virtual void initServices() override {
@@ -583,5 +584,5 @@ class Overlay : public tsl::Overlay {
 };
 
 int main(int argc, char **argv) {
-    return tsl::loop<Overlay>(argc, argv);
+    return tsl::loop<EmuiiboOverlay>(argc, argv);
 }
