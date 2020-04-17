@@ -63,15 +63,15 @@ namespace ipc::nfp {
         protected:
             NfpState state;
             NfpDeviceState device_state;
-            ams::os::SystemEvent event_activate;
-            ams::os::SystemEvent event_deactivate;
-            ams::os::SystemEvent event_availability_change;
+            ams::os::SystemEventType event_activate;
+            ams::os::SystemEventType event_deactivate;
+            ams::os::SystemEventType event_availability_change;
             Service *forward_service;
             u64 client_app_id;
 
             Lock amiibo_update_lock;
             sys::VirtualAmiiboStatus last_notified_status;
-            ams::os::Thread amiibo_update_thread;
+            Thread amiibo_update_thread;
             bool should_exit_thread;
 
         protected:
@@ -87,7 +87,7 @@ namespace ipc::nfp {
 
             inline void NotifyThreadExitAndWait() {
                 this->NotifyShouldExitThread();
-                EMU_R_ASSERT(this->amiibo_update_thread.Join());
+                EMU_R_ASSERT(threadWaitForExit(&this->amiibo_update_thread));
             }
 
             template<typename T>
@@ -126,8 +126,8 @@ namespace ipc::nfp {
             }
 
         protected:
-            ams::Result Initialize(const ams::sf::ClientAppletResourceUserId &client_aruid, const ams::sf::ClientProcessId &client_pid, const ams::sf::InBuffer &mcu_data);
-            ams::Result Finalize();
+            void Initialize(const ams::sf::ClientAppletResourceUserId &client_aruid, const ams::sf::ClientProcessId &client_pid, const ams::sf::InBuffer &mcu_data);
+            void Finalize();
             ams::Result ListDevices(const ams::sf::OutPointerArray<DeviceHandle> &out_devices, ams::sf::Out<s32> out_count);
             ams::Result StartDetection(DeviceHandle handle);
             ams::Result StopDetection(DeviceHandle handle);
@@ -141,8 +141,8 @@ namespace ipc::nfp {
             ams::Result GetModelInfo(ams::sf::Out<ModelInfo> out_info, DeviceHandle handle);
             ams::Result AttachActivateEvent(DeviceHandle handle, ams::sf::Out<ams::sf::CopyHandle> event);
             ams::Result AttachDeactivateEvent(DeviceHandle handle, ams::sf::Out<ams::sf::CopyHandle> event);
-            ams::Result GetState(ams::sf::Out<u32> state);
-            ams::Result GetDeviceState(DeviceHandle handle, ams::sf::Out<u32> state);
+            void GetState(ams::sf::Out<u32> state);
+            void GetDeviceState(DeviceHandle handle, ams::sf::Out<u32> state);
             ams::Result GetNpadId(DeviceHandle handle, ams::sf::Out<u32> npad_id);
             ams::Result AttachAvailabilityChangeEvent(ams::sf::Out<ams::sf::CopyHandle> event);
 

@@ -12,15 +12,16 @@ namespace ipc::nfp {
             iface_ptr->HandleVirtualAmiiboStatus(status);
             svcSleepThread(100'000'000ul);
         }
+        EMU_LOG_FMT("Exiting...")
     }
 
-    ICommonInterface::ICommonInterface(Service *fwd, u64 app_id) : state(NfpState_NonInitialized), device_state(NfpDeviceState_Unavailable), forward_service(fwd), client_app_id(app_id), should_exit_thread(false) {
+    ICommonInterface::ICommonInterface(Service *fwd, u64 app_id) : state(NfpState_NonInitialized), device_state(NfpDeviceState_Unavailable), forward_service(fwd), client_app_id(app_id), amiibo_update_lock(true), should_exit_thread(false) {
         sys::RegisterInterceptedApplicationId(this->client_app_id);
-        this->event_activate.InitializeAsInterProcessEvent();
-        this->event_deactivate.InitializeAsInterProcessEvent();
-        this->event_availability_change.InitializeAsInterProcessEvent();
-        EMU_R_ASSERT(this->amiibo_update_thread.Initialize(&VirtualAmiiboStatusUpdateThread, reinterpret_cast<void*>(this), 0x2000, 0x2b));
-        EMU_R_ASSERT(this->amiibo_update_thread.Start());
+        EMU_R_ASSERT(ams::os::CreateSystemEvent(&this->event_activate, ams::os::EventClearMode_AutoClear, true));
+        EMU_R_ASSERT(ams::os::CreateSystemEvent(&this->event_deactivate, ams::os::EventClearMode_AutoClear, true));
+        EMU_R_ASSERT(ams::os::CreateSystemEvent(&this->event_availability_change, ams::os::EventClearMode_AutoClear, true));
+        EMU_R_ASSERT(threadCreate(&this->amiibo_update_thread, &VirtualAmiiboStatusUpdateThread, reinterpret_cast<void*>(this), nullptr, 0x2000, 0x2B, -2));
+        EMU_R_ASSERT(threadStart(&this->amiibo_update_thread));
     }
 
     ICommonInterface::~ICommonInterface() {
@@ -41,7 +42,7 @@ namespace ipc::nfp {
                     case NfpDeviceState_SearchingForTag: {
                         // The client was waiting for an amiibo, tell it that it's connected now
                         this->SetDeviceStateValue(NfpDeviceState_TagFound);
-                        this->event_activate.Signal();
+                        ams::os::SignalSystemEvent(&this->event_activate);
                         this->last_notified_status = sys::VirtualAmiiboStatus::Invalid;
                         break;
                     }
@@ -61,7 +62,7 @@ namespace ipc::nfp {
                     case NfpDeviceState_TagMounted: {
                         // The client thinks that the amiibo is connected, tell it that it was disconnected
                         this->SetDeviceStateValue(NfpDeviceState_SearchingForTag);
-                        this->event_deactivate.Signal();
+                        ams::os::SignalSystemEvent(&this->event_deactivate);
                         this->last_notified_status = sys::VirtualAmiiboStatus::Invalid;
                         break;
                     }
@@ -100,18 +101,16 @@ namespace ipc::nfp {
         this->device_state = val;
     }
 
-    ams::Result ICommonInterface::Initialize(const ams::sf::ClientAppletResourceUserId &client_aruid, const ams::sf::ClientProcessId &client_pid, const ams::sf::InBuffer &mcu_data) {
+    void ICommonInterface::Initialize(const ams::sf::ClientAppletResourceUserId &client_aruid, const ams::sf::ClientProcessId &client_pid, const ams::sf::InBuffer &mcu_data) {
         EMU_LOG_FMT("Process ID: 0x" << std::hex << client_pid.GetValue().value << ", ARUID: 0x" << std:: hex << client_aruid.GetValue().value)
         this->SetStateValue(NfpState_Initialized);
         this->SetDeviceStateValue(NfpDeviceState_Initialized);
-        return ams::ResultSuccess();
     }
 
-    ams::Result ICommonInterface::Finalize() {
+    void ICommonInterface::Finalize() {
         EMU_LOG_FMT("Finalizing...")
         this->SetStateValue(NfpState_NonInitialized);
         this->SetDeviceStateValue(NfpDeviceState_Finalized);
-        return ams::ResultSuccess();
     }
 
     ams::Result ICommonInterface::ListDevices(const ams::sf::OutPointerArray<DeviceHandle> &out_devices, ams::sf::Out<s32> out_count) {
@@ -227,29 +226,27 @@ namespace ipc::nfp {
     ams::Result ICommonInterface::AttachActivateEvent(DeviceHandle handle, ams::sf::Out<ams::sf::CopyHandle> event) {
         R_UNLESS(this->IsStateAny<NfpState>(NfpState_Initialized), result::nfp::ResultDeviceNotFound);
 
-        event.SetValue(event_activate.GetReadableHandle());
+        event.SetValue(ams::os::GetReadableHandleOfSystemEvent(&this->event_activate));
         return ams::ResultSuccess();
     }
 
     ams::Result ICommonInterface::AttachDeactivateEvent(DeviceHandle handle, ams::sf::Out<ams::sf::CopyHandle> event) {
         R_UNLESS(this->IsStateAny<NfpState>(NfpState_Initialized), result::nfp::ResultDeviceNotFound);
 
-        event.SetValue(event_deactivate.GetReadableHandle());
+        event.SetValue(ams::os::GetReadableHandleOfSystemEvent(&this->event_deactivate));
         return ams::ResultSuccess();
     }
 
-    ams::Result ICommonInterface::GetState(ams::sf::Out<u32> out_state) {
+    void ICommonInterface::GetState(ams::sf::Out<u32> out_state) {
         auto state = this->GetStateValue();
         EMU_LOG_FMT("State: " << static_cast<u32>(state));
         out_state.SetValue(static_cast<u32>(state));
-        return ams::ResultSuccess();
     }
 
-    ams::Result ICommonInterface::GetDeviceState(DeviceHandle handle, ams::sf::Out<u32> out_state) {
+    void ICommonInterface::GetDeviceState(DeviceHandle handle, ams::sf::Out<u32> out_state) {
         auto state = this->GetDeviceStateValue();
         EMU_LOG_FMT("Device state: " << static_cast<u32>(state));
         out_state.SetValue(static_cast<u32>(state));
-        return ams::ResultSuccess();
     }
 
     ams::Result ICommonInterface::GetNpadId(DeviceHandle handle, ams::sf::Out<u32> out_npad_id) {
@@ -262,7 +259,7 @@ namespace ipc::nfp {
     ams::Result ICommonInterface::AttachAvailabilityChangeEvent(ams::sf::Out<ams::sf::CopyHandle> event) {
         R_UNLESS(this->IsStateAny<NfpState>(NfpState_Initialized), result::nfp::ResultDeviceNotFound);
         
-        event.SetValue(event_availability_change.GetReadableHandle());
+        event.SetValue(ams::os::GetReadableHandleOfSystemEvent(&this->event_availability_change));
         return ams::ResultSuccess();
     }
 

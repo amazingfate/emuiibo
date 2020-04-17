@@ -29,7 +29,7 @@ static inline constexpr Version CurrentVersion = { EMUIIBO_MAJOR, EMUIIBO_MINOR,
 
 #define EMU_DEFINE_RESULT(name, desc) static constexpr Result Result##name = MAKERESULT(Module, desc);
 
-using Lock = ams::os::RecursiveMutex;
+using Lock = ams::os::Mutex;
 
 #define EMU_LOCK_SCOPE_WITH(mtx_name) std::scoped_lock lk(mtx_name);
 

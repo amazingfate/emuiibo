@@ -15,7 +15,7 @@
 
 ## Usage
 
-Build or download the latest release of emuiibo and extract the contents of 'SdOut' in the root of your SD card.
+Build or download the latest release of emuiibo and extract the contents of 'SdOut' directory (inside 'emuiibo-v*.zip') in the root of your SD card.
 
 emuiibo comes bundled with a Tesla overlay to control it quite easily, but tools such as Goldleaf, Amiigo... can be used as a controller too.
 

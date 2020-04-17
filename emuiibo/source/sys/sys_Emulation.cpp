@@ -3,7 +3,7 @@
 
 namespace sys {
 
-    static Lock g_emulation_lock;
+    static Lock g_emulation_lock(true);
     
     static EmulationStatus g_emulation_status = EmulationStatus::Off;
     static amiibo::VirtualAmiibo g_virtual_amiibo;

@@ -1,5 +1,4 @@
 #include <sys/sys_System.hpp>
-#include <ipc/mii/mii_Utils.hpp>
 
 #include <ipc/nfp/sys/sys_ISystemManager.hpp>
 #include <ipc/nfp/user/user_IUserManager.hpp>
@@ -33,17 +32,21 @@ extern "C" {
         EMU_R_ASSERT(fsdevMountSdmc());
         EMU_R_ASSERT(timeInitialize());
         __libnx_init_time();
+        EMU_R_ASSERT(setsysInitialize());
+        SetSysFirmwareVersion ver = {};
+        EMU_R_ASSERT(setsysGetFirmwareVersion(&ver));
+        hosversionSet(MAKEHOSVERSION(ver.major, ver.minor, ver.micro));
+        setsysExit();
         EMU_R_ASSERT(hidInitialize());
-        EMU_R_ASSERT(ipc::mii::Initialize());
+        EMU_R_ASSERT(miiInitialize(MiiServiceType_System));
         EMU_R_ASSERT(pmdmntInitialize());
         EMU_R_ASSERT(pminfoInitialize());
-        ams::hos::SetVersionForLibnx();
     }
 
     void __appExit(void) {
         pminfoExit();
         pmdmntExit();
-        ipc::mii::Finalize();
+        miiExit();
         timeExit();
         hidExit();
         fsdevUnmountAll();
@@ -86,7 +89,7 @@ int main() {
     
     EMU_LOG_FMT("Starting emuiibo...")
 
-    ipc::mii::DumpSystemMiis();
+    sys::DumpConsoleMiis();
     sys::ScanAmiiboDirectory();
  
     // Register nfp:user

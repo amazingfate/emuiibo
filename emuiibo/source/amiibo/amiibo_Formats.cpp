@@ -128,11 +128,16 @@ namespace amiibo {
 
     TagInfo VirtualAmiibo::ProduceTagInfo() {
         TagInfo info = {};
+        // Normally amiibos have 7 here (3 trailing zeros), but this doesn't seem to be enforced/checked
         info.info.uuid_length = 10;
         auto uuid_info = this->GetUuidInfo();
         if(uuid_info.random_uuid) {
             // Random UUID can be helpful for amiibos used for daily bonus stuff - meaning infinite supply with some games like BOTW
-            randomGet(info.info.uuid, 10);
+            // Follow most amiibos' pattern, and zero the last 3 bytes
+            randomGet(info.info.uuid, 7);
+            info.info.uuid[7] = 0;
+            info.info.uuid[8] = 0;
+            info.info.uuid[9] = 0;
         }
         else {
             memcpy(info.info.uuid, uuid_info.uuid, 10);

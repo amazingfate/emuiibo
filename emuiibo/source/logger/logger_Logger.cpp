@@ -4,7 +4,7 @@
 
 namespace logger {
 
-    static Lock g_logging_lock;
+    static Lock g_logging_lock(true);
 
     // Lock logs to avoid race conditions from multiple threads
 

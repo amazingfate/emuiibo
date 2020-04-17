@@ -2,7 +2,6 @@
 #pragma once
 #include <emu_Types.hpp>
 #include <amiibo/amiibo_Areas.hpp>
-#include <ipc/mii/mii_Utils.hpp>
 #include <ctime>
 
 namespace amiibo {
@@ -19,7 +18,7 @@ namespace amiibo {
         char name[40 + 1];
         Date first_write_date;
         Date last_write_date;
-        CharInfo mii_charinfo;
+        MiiCharInfo mii_charinfo;
 
         inline bool IsValid() {
             return strlen(this->name);
@@ -57,6 +56,17 @@ namespace amiibo {
                 return cur_date;
             }
 
+            static inline MiiCharInfo GenerateRandomMii() {
+                MiiCharInfo charinfo = {};
+                MiiDatabase db;
+                auto rc = miiOpenDatabase(&db, MiiSpecialKeyCode_Normal);
+                if(R_SUCCEEDED(rc)) {
+                    miiDatabaseBuildRandom(&db, MiiAge_All, MiiGender_All, MiiFaceColor_All, &charinfo);
+                    miiDatabaseClose(&db);
+                }
+                return charinfo;
+            }
+
         public:
             IVirtualAmiiboBase() : valid(false) {}
 
@@ -89,17 +99,17 @@ namespace amiibo {
                 return fs::Concat(this->path, this->GetMiiCharInfoFileName());
             }
 
-            inline CharInfo ReadMiiCharInfo() {
-                CharInfo charinfo = {};
+            inline MiiCharInfo ReadMiiCharInfo() {
+                MiiCharInfo charinfo = {};
                 auto charinfo_path = this->GetMiiCharInfoPath();
                 if(fs::IsFile(charinfo_path)) {
-                    charinfo = fs::Read<CharInfo>(charinfo_path);
+                    charinfo = fs::Read<MiiCharInfo>(charinfo_path);
                 }
                 else {
                     // The amiibo has no mii charinfo data
                     // This might be a new emutool amiibo which needs a mii
                     // Let's generate a random mii then
-                    charinfo = ipc::mii::GenerateRandomMii();
+                    charinfo = GenerateRandomMii();
                     // Save it too, for the next time
                     fs::Save(charinfo_path, charinfo);
                 }
@@ -247,7 +257,7 @@ namespace amiibo {
                     // This should (only?) happen if a virtual amiibo is not properly generated or is corrupted...?
                     has_charinfo = fs::IsFile(old_amiibo.GetMiiCharInfoPath());
                 }
-                CharInfo charinfo = {};
+                MiiCharInfo charinfo = {};
                 if(has_charinfo) {
                     charinfo = old_amiibo.ReadMiiCharInfo();
                     amiibo.SetMiiCharInfoFileName(old_amiibo.GetMiiCharInfoFileName());
@@ -257,7 +267,7 @@ namespace amiibo {
                     amiibo.SetMiiCharInfoFileName("mii-charinfo.bin");
                     // Generate a random mii if the original virtual amiibo doesn't have one
                     // Otherwise, the charinfo struct should already be populated
-                    charinfo = ipc::mii::GenerateRandomMii();
+                    charinfo = GenerateRandomMii();
                 }
                 // Manually indicate the amiibo is valid
                 amiibo.path = old_amiibo.GetPath();

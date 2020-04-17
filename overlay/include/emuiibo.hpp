@@ -23,7 +23,7 @@ namespace emu {
         char name[40 + 1];
         VirtualAmiiboDate first_write_date;
         VirtualAmiiboDate last_write_date;
-        NfpMiiCharInfo mii_charinfo;
+        MiiCharInfo mii_charinfo;
 
         inline bool IsValid() {
             return strlen(this->name);

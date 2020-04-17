@@ -248,7 +248,7 @@ class AmiiboList : public tsl::Gui {
         tsl::elm::DoubleSectionOverlayFrame *root_frame;
         tsl::elm::CustomCategoryHeader *category_header;
         tsl::elm::SmallToggleListItem *toggle_item = new tsl::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
-        tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("Current game is");
+        tsl::elm::SmallListItem *game_header = new tsl::elm::SmallListItem("current game is");
         tsl::elm::SmallListItem *amiibo_header;
         tsl::elm::List *top_list;
         tsl::elm::List *bottom_list;
@@ -496,7 +496,7 @@ class MainGui : public tsl::Gui {
             else {
                 top_list->addItem(new tsl::elm::BigCategoryHeader(MakeStatusText(), true));
             }
-            
+
             toggle_item->setClickListener([&](u64 keys) {
                 if(keys & KEY_A){
                     if (emu::GetEmulationStatus()==emu::EmulationStatus::On) {

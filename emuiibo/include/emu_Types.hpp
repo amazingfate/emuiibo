@@ -2,8 +2,6 @@
 #pragma once
 #include <emu_Base.hpp>
 
-using CharInfo = NfpMiiCharInfo;
-
 // An amiibo ID
 
 struct CharacterId {
@@ -87,7 +85,7 @@ struct ModelInfo : public ams::sf::LargeData {
 struct RegisterInfoImpl {
     static inline constexpr size_t AmiiboNameLength = 40;
 
-    CharInfo mii;
+    MiiCharInfo mii;
     Date first_write_date;
     char name[AmiiboNameLength + 1];
     u8 font_region;
