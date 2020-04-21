@@ -11,6 +11,7 @@ namespace {
 
     bool g_emuiibo_init_ok = false;
     bool g_category_list_update_flag = false;
+    int g_category_list_last_index = 0;
     bool g_current_app_intercepted = false;
     char g_emuiibo_amiibo_dir[FS_MAX_PATH];
     emu::Version g_emuiibo_version;
@@ -381,6 +382,7 @@ class MainGui : public tsl::Gui {
         tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
         tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
         tslext::elm::SmallListItem *amiibo_header;
+        tsl::elm::List *bottom_list = new tsl::elm::List();
         tslext::elm::DoubleSectionOverlayFrame *root_frame;
         
     public:
@@ -390,16 +392,12 @@ class MainGui : public tsl::Gui {
             this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
             this->amiibo_header->setText(MakeActiveAmiiboText());
             this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
-            this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);   
-        }
-
-        static bool OnItemClick(u64 keys, const std::string &path) {
-            if(keys & KEY_A) {
-                tsl::changeTo<AmiiboList>(path);
-                g_category_list_update_flag = true;
-                return true;
+            this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);
+            if(g_category_list_update_flag) {
+                g_category_list_update_flag = false; //back from amiibos
+                if (g_category_list_last_index > -1 && this->bottom_list->getItemAtIndex(g_category_list_last_index) != nullptr) //better safe than sorry
+                    this->bottom_list->setFocusedIndex(g_category_list_last_index);
             }
-            return false;
         }
 
         bool OnAmiiboHeaderClick(u64 keys, const std::string &path) {
@@ -435,7 +433,6 @@ class MainGui : public tsl::Gui {
 
         virtual tsl::elm::Element *createUI() override {
             auto top_list = new tsl::elm::List();
-            auto bottom_list = new tsl::elm::List();
             
             if(g_emuiibo_init_ok) {
                 
@@ -450,7 +447,15 @@ class MainGui : public tsl::Gui {
 
                 // Root
                 auto root_item = new tslext::elm::SmallListItem("<root>");
-                root_item->setClickListener(std::bind(&MainGui::OnItemClick, std::placeholders::_1, g_emuiibo_amiibo_dir));
+                root_item->setClickListener([&, this, root_item] (u64 keys) {
+                    if(keys & KEY_A) {
+                        g_category_list_last_index = this->bottom_list->getIndexInList(root_item);
+                        g_category_list_update_flag = true;
+                        tsl::changeTo<AmiiboList>(g_emuiibo_amiibo_dir);
+                        return true;
+                    }
+                    return false;
+                });
                 bottom_list->addItem(root_item);
 
                 u32 count = 1; // Root
@@ -472,7 +477,15 @@ class MainGui : public tsl::Gui {
                             }
                             if(entry->d_type & DT_DIR) {
                                 auto item = new tslext::elm::SmallListItem(entry->d_name);
-                                item->setClickListener(std::bind(&MainGui::OnItemClick, std::placeholders::_1, str_path));
+                                item->setClickListener([&, this, item, path] (u64 keys) {
+                                    if(keys & KEY_A) {
+                                        g_category_list_last_index = this->bottom_list->getIndexInList(item);
+                                        g_category_list_update_flag = true;
+                                        tsl::changeTo<AmiiboList>(path);
+                                        return true;
+                                    }
+                                    return false;
+                                });
                                 bottom_list->addItem(item);
                                 count++;
                             }
