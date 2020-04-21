@@ -34,6 +34,8 @@ namespace sys {
 
     void DumpConsoleMiis() {
         fs::EnsureEmuiiboDirectories();
+        // Recreate miis dir
+        fs::RecreateDirectory(consts::DumpedMiisDir);
         MiiDatabase db;
         auto rc = miiOpenDatabase(&db, MiiSpecialKeyCode_Normal);
         if(R_SUCCEEDED(rc)) {
@@ -52,17 +54,13 @@ namespace sys {
                             char mii_name[mii_name_len + 1] = {0};
                             // Use a copy to avoid warnings, since the charinfo struct is packed
                             u16 mii_name_16[mii_name_len + 1] = {0};
-                            memcpy(mii_name_16, charinfo.mii_name, mii_name_len);
+                            memcpy(mii_name_16, charinfo.mii_name, sizeof(mii_name_16));
                             utf16_to_utf8((u8*)mii_name, (const u16*)mii_name_16, mii_name_len);
                             auto charinfo_dir = std::to_string(i) + " - " + mii_name;
                             auto charinfo_dir_path = fs::Concat(consts::DumpedMiisDir, charinfo_dir);
                             fs::CreateDirectory(charinfo_dir_path);
                             auto charinfo_file_path = fs::Concat(charinfo_dir_path, "mii-charinfo.bin");
-                            auto f = fopen(charinfo_file_path.c_str(), "wb");
-                            if(f) {
-                                fwrite(&charinfo, 1, sizeof(charinfo), f);
-                                fclose(f);
-                            }
+                            fs::Save(charinfo_file_path, charinfo);
                         }
                     }
                     delete[] buf;

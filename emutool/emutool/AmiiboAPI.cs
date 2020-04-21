@@ -67,7 +67,9 @@ namespace emutool
 
         public static AmiiboList GetAllAmiibos()
         {
-            AmiiboList list = new AmiiboList();
+            ServicePointManager.Expect100Continue = true;
+            ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
+            var list = new AmiiboList();
             try
             {
                 var json = JObject.Parse(new WebClient().DownloadString(AmiiboAPIURL));
