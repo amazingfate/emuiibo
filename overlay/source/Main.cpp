@@ -257,7 +257,7 @@ class AmiiboList : public tsl::Gui {
         std::string amiibo_path;
 
     public:
-        AmiiboList(const std::string &path) : root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tslext::SectionsLayout::same, true)), amiibo_path(path) {}
+        AmiiboList(const std::string &path) : root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), " ", tslext::SectionsLayout::same, true)), amiibo_path(path) {}
 
         bool OnItemClick(u64 keys, const std::string &path) {
             if(keys & KEY_A) {
@@ -386,7 +386,7 @@ class MainGui : public tsl::Gui {
         tslext::elm::DoubleSectionOverlayFrame *root_frame;
         
     public:
-        MainGui() : bottom_list(new tsl::elm::List()), amiibo_header(new tslext::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tslext::SectionsLayout::same, true)) {}
+        MainGui() : bottom_list(new tsl::elm::List()), amiibo_header(new tslext::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), " ", tslext::SectionsLayout::same, true)) {}
 
         void Refresh() {
             this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
