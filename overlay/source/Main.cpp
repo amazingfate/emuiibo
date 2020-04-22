@@ -381,12 +381,12 @@ class MainGui : public tsl::Gui {
     private:
         tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
         tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
+        tsl::elm::List *bottom_list;
         tslext::elm::SmallListItem *amiibo_header;
-        tsl::elm::List *bottom_list = new tsl::elm::List();
         tslext::elm::DoubleSectionOverlayFrame *root_frame;
         
     public:
-        MainGui() : amiibo_header(new tslext::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tslext::SectionsLayout::same, true)) {}
+        MainGui() : bottom_list(new tsl::elm::List()), amiibo_header(new tslext::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), "", tslext::SectionsLayout::same, true)) {}
 
         void Refresh() {
             this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
@@ -395,8 +395,8 @@ class MainGui : public tsl::Gui {
             this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);
             if(g_category_list_update_flag) {
                 g_category_list_update_flag = false; //back from amiibos
-                if (g_category_list_last_index > -1 && this->bottom_list->getItemAtIndex(g_category_list_last_index) != nullptr) //better safe than sorry
-                    this->bottom_list->setFocusedIndex(g_category_list_last_index);
+                //if (bottom_list->getItemAtIndex(g_category_list_last_index) != nullptr) //better safe than sorry
+                    bottom_list->setFocusedIndex(g_category_list_last_index);
             }
         }
 
@@ -411,12 +411,10 @@ class MainGui : public tsl::Gui {
                         switch(status) {
                             case emu::VirtualAmiiboStatus::Connected: {
                                 emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                root_frame->setSubtitle(MakeStatusText());
                                 break;
                             }
                             case emu::VirtualAmiiboStatus::Disconnected: {
                                 emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                root_frame->setSubtitle(MakeStatusText());
                                 break;
                             }
                             default:
@@ -447,9 +445,9 @@ class MainGui : public tsl::Gui {
 
                 // Root
                 auto root_item = new tslext::elm::SmallListItem("<root>");
-                root_item->setClickListener([&, this, root_item] (u64 keys) {
+                root_item->setClickListener([&, root_item] (u64 keys) {
                     if(keys & KEY_A) {
-                        g_category_list_last_index = this->bottom_list->getIndexInList(root_item);
+                        g_category_list_last_index = bottom_list->getIndexInList(root_item);
                         g_category_list_update_flag = true;
                         tsl::changeTo<AmiiboList>(g_emuiibo_amiibo_dir);
                         return true;
@@ -477,9 +475,9 @@ class MainGui : public tsl::Gui {
                             }
                             if(entry->d_type & DT_DIR) {
                                 auto item = new tslext::elm::SmallListItem(entry->d_name);
-                                item->setClickListener([&, this, item, path] (u64 keys) {
+                                item->setClickListener([&, item, path] (u64 keys) {
                                     if(keys & KEY_A) {
-                                        g_category_list_last_index = this->bottom_list->getIndexInList(item);
+                                        g_category_list_last_index = bottom_list->getIndexInList(item);
                                         g_category_list_update_flag = true;
                                         tsl::changeTo<AmiiboList>(path);
                                         return true;
