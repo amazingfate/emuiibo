@@ -17,7 +17,9 @@
 
 Build or download the latest release of emuiibo and extract the contents of 'SdOut' directory (inside 'emuiibo-v*.zip') in the root of your SD card.
 
-emuiibo comes bundled with a Tesla overlay to control it quite easily, but tools such as Goldleaf, Amiigo... can be used as a controller too.
+emuiibo comes bundled with a Tesla overlay to control it quite easily.
+
+For more detailed information of how to use emuiibo, check [the usage wiki](Usage.md).
 
 ### SD layout
 
@@ -102,6 +104,8 @@ An access ID is a unique ID/number each game has for amiibo savedata, used to ch
 - **AmiiboAPI** web API, which is used by `emutool` to get a proper, full amiibo list, in order to generate virtual amiibos.
 
 - [**3DBrew**](https://www.3dbrew.org/wiki/Amiibo) for their detailed documentation of amiibos, even though some aspects are different on the Switch.
+
+- **LoOkYe** for writing emuiibo's wiki and helping with support.
 
 - **AD2076** for helping with the tesla overlay.
 
