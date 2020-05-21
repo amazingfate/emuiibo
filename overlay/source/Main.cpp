@@ -44,9 +44,10 @@ namespace {
         return false;
     }
 
-    inline std::string MakeActiveAmiiboText() {
+    inline std::string MakeActiveAmiiboText () {
         if(IsActiveAmiiboValid()) {
-            return g_active_amiibo_data.name;
+            std::string msg = g_active_amiibo_data.name;
+            return msg.append(" \uE105");
         }
         return "No active virtual amiibo";
     }
@@ -249,7 +250,7 @@ class AmiiboList : public tsl::Gui {
     private:
         tslext::elm::DoubleSectionOverlayFrame *root_frame;
         tslext::elm::CustomCategoryHeader *category_header;
-        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
+        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status \uE0E4 \uE0E5",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
         tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
         tslext::elm::SmallListItem *amiibo_header;
         tsl::elm::List *top_list;
@@ -379,7 +380,7 @@ class AmiiboList : public tsl::Gui {
 class MainGui : public tsl::Gui {
 
     private:
-        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
+        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status \uE0E4 \uE0E5",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
         tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
         tsl::elm::List *bottom_list;
         tslext::elm::SmallListItem *amiibo_header;
