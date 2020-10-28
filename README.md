@@ -17,7 +17,9 @@
 
 Build or download the latest release of emuiibo and extract the contents of 'SdOut' directory (inside 'emuiibo-v*.zip') in the root of your SD card.
 
-emuiibo comes bundled with a Tesla overlay to control it quite easily, but tools such as Goldleaf, Amiigo... can be used as a controller too.
+emuiibo comes bundled with a Tesla overlay to control it quite easily.
+
+For more detailed information of how to use emuiibo, check [the usage wiki](Usage.md).
 
 ### SD layout
 
@@ -35,7 +37,7 @@ emuiibo comes bundled with a Tesla overlay to control it quite easily, but tools
 
 - **Emulation status (on/off)**: when emuiibo's emulation status is on, it means that any game trying to access/read amiibos will be intercepted by emuiibo. When it's off, it means that amiibo services will work normally, and nothing will be intercepted. This is basically a toggle to globally disable or enable amiibo emulation.
 
-- **Active virtual amiibo**: it's the amiibo which will be sent to the games which try to scan amiibos, if emulation is on. Via tools such as the overlay or Goldleaf, one can change the active virtual amiibo.
+- **Active virtual amiibo**: it's the amiibo which will be sent to the games which try to scan amiibos, if emulation is on. Via tools such as the overlay, one can change the active virtual amiibo.
 
 - **Virtual amiibo status (connected/disconnected)**: when the active virtual amiibo is connected, it means that the amiibo is always "placed", as if you were holding a real amiibo on the NFC point and never moving it - the game always detects it. When it is disconnected, it means that you "removed" it, as if you just removed the amiibo from the NFC point. Some games might ask you to remove the amiibo after saving data, so you must disconnect the virtual amiibo to "simulate" that removal. This is a new feature in v0.5, which fixed errors, since emuiibo tried to handle this automatically in previous versions, causing some games to fail.
 
@@ -43,7 +45,7 @@ All this aspects can be seen/controlled via the overlay.
 
 ## Virtual amiibo creation
 
-Emuiibo no longer requires raw BIN dumps (but allows them) to emulate amiibos. Instead, you can use `emutool` PC tool in order to generate virtual amiibos.
+Emuiibo no longer accepts raw BIN dumps to emulate amiibos. Instead, you can use `emutool` PC tool in order to generate virtual amiibos.
 
 ![Screenshot](emutool/Screenshot.png)
 
@@ -91,6 +93,8 @@ An access ID is a unique ID/number each game has for amiibo savedata, used to ch
 
 - Breath of the Wild: 0x1019C800
 
+- Link's Awakening: 0x3B440400
+
 **NOTE**: if anyone is willing to make savedata editors for this amiibo saves, I'm pretty sure it would be extremely helpful for many users.
 
 ## Credits
@@ -102,6 +106,8 @@ An access ID is a unique ID/number each game has for amiibo savedata, used to ch
 - **AmiiboAPI** web API, which is used by `emutool` to get a proper, full amiibo list, in order to generate virtual amiibos.
 
 - [**3DBrew**](https://www.3dbrew.org/wiki/Amiibo) for their detailed documentation of amiibos, even though some aspects are different on the Switch.
+
+- **LoOkYe** for writing emuiibo's wiki and helping with support.
 
 - **AD2076** for helping with the tesla overlay.
 

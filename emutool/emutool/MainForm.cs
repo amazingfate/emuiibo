@@ -86,6 +86,7 @@ namespace emutool
                 var cur_amiibo = CurrentSeriesAmiibos[AmiiboComboBox.SelectedIndex];
                 AmiiboPictureBox.ImageLocation = cur_amiibo.ImageURL;
                 AmiiboNameBox.Text = cur_amiibo.AmiiboName;
+                CreateAllCheck.Checked = false;
             }
             catch(Exception ex)
             {
@@ -93,15 +94,6 @@ namespace emutool
             }
         }
 
-        private DialogResult ShowQuestionBox(string msg)
-        {
-            return MessageBox.Show(msg, DialogCaption, MessageBoxButtons.OKCancel, MessageBoxIcon.Question);
-        }
-
-        private bool CancelAmiiboCreation(string dir)
-        {
-            return ShowQuestionBox($"Virtual amiibo will be created in {dir}.\n\nThe directory will be deleted if it already exists.\n\nProceed with amiibo creation?") != DialogResult.OK;
-        }
         private void ShowErrorBox(string msg)
         {
             MessageBox.Show(msg, DialogCaption, MessageBoxButtons.OK, MessageBoxIcon.Error);
@@ -145,151 +137,179 @@ namespace emutool
             return null;
         }
 
+        private void CreateAmiibo(string name, string dir_name, string base_dir, AmiiboAPI.Amiibo cur_amiibo)
+        {
+            string out_path;
+            bool use_last_path = LastPathCheck.Checked;
+            if (use_last_path)
+            {
+                if (string.IsNullOrEmpty(LastUsedPath))
+                {
+                    use_last_path = false;
+                }
+            }
+
+            bool save_to_ftp = FtpSaveCheck.Checked;
+            IPAddress ftp_ip = null;
+            int ftp_port = 0;
+
+            // For FTP, use a temp directory to save the resulting files from amiibo.Save() before transfer
+            var ftp_tmp_path = Path.Combine(Environment.CurrentDirectory, "temp_ftp");
+            var ftp_sd_folder = "/emuiibo/amiibo/";
+            if (!string.IsNullOrEmpty(dir_name)) ftp_sd_folder += $"{dir_name}/";
+
+            if (save_to_ftp)
+            {
+                // Prepare FTP path
+                out_path = Path.Combine(ftp_tmp_path, dir_name);
+
+                // Validate the FTP address
+                if (!IPAddress.TryParse(FtpAddressBox.Text, out ftp_ip))
+                {
+                    ShowErrorBox("FTP address is invalid");
+                    return;
+                }
+
+                if (!int.TryParse(FtpPortBox.Text, out ftp_port))
+                {
+                    ShowErrorBox("FTP port is invalid");
+                    return;
+                }
+            }
+            else
+            {
+                if (use_last_path)
+                {
+                    out_path = Path.Combine(LastUsedPath, dir_name);
+                }
+                else
+                {
+                    out_path = Path.Combine(base_dir, dir_name);
+                }
+            }
+
+            // Actually save the amiibo
+            var amiibo = AmiiboUtils.BuildAmiibo(cur_amiibo, name);
+            amiibo.Save(out_path, RandomizeUuidCheck.Checked, SaveImageCheck.Checked);
+
+
+            // Special handling for FTP
+            if (save_to_ftp)
+            {
+                var success = true;
+                using (var client = new FtpClient(ftp_ip.ToString(), ftp_port, new NetworkCredential("", "")))
+                {
+                    client.ConnectTimeout = 1000;
+                    client.Connect();
+                    foreach (var file in Directory.GetFiles(out_path))
+                    {
+                        var file_name = Path.GetFileName(file);
+                        // Upload each file created, creating directories along the way
+                        var status = client.UploadFile(file, ftp_sd_folder + file_name, createRemoteDir: true);
+                        if (status != FtpStatus.Success)
+                        {
+                            success = false;
+                            break;
+                        }
+                    }
+                    client.Disconnect();
+                }
+
+                ExceptionUtils.Unless(success, "Error during FTP upload, please try again");
+
+                // Clean the temp directory
+                Directory.Delete(ftp_tmp_path, true);
+            }
+            else
+            {
+                if (!use_last_path)
+                {
+                    // Update last used path
+                    LastUsedPath = base_dir;
+                }
+            }
+        }
+
         private void Button1_Click(object sender, EventArgs e)
         {
             try
             {
-                var cur_amiibo = CurrentSeriesAmiibos[AmiiboComboBox.SelectedIndex];
-                if(string.IsNullOrEmpty(AmiiboNameBox.Text))
+                string base_dir = null;
+                if(!FtpSaveCheck.Checked)
                 {
-                    ShowErrorBox("No amiibo name was specified.");
-                    return;
-                }
-
-                bool use_name_as_dir = UseNameCheck.Checked;
-                if(!use_name_as_dir && string.IsNullOrEmpty(DirectoryNameBox.Text))
-                {
-                    ShowErrorBox("No amiibo directory name was specified.");
-                    return;
-                }
-
-                string name = AmiiboNameBox.Text;
-                string dir_name = name;
-                if(!use_name_as_dir)
-                {
-                    dir_name = DirectoryNameBox.Text;
-                }
-
-                string out_path = "";
-                bool use_last_path = LastPathCheck.Checked;
-                if(use_last_path)
-                {
-                    if(string.IsNullOrEmpty(LastUsedPath))
-                    {
-                        use_last_path = false;
-                    }
-                }
-
-                bool save_to_ftp = FtpSaveCheck.Checked;
-                IPAddress ftp_ip = null;
-                int ftp_port = 0;
-
-                // For FTP, use a temp directory to save the resulting files from amiibo.Save() before transfer
-                var ftp_tmp_path = Path.Combine(Environment.CurrentDirectory, "temp_ftp");
-                var ftp_sd_folder = $"/emuiibo/amiibo/{dir_name}/";
-                var selected_path = "";
-
-                if(save_to_ftp)
-                {
-                    // Prepare FTP path
-                    out_path = Path.Combine(ftp_tmp_path, dir_name);
-
-                    // Validate the FTP address
-                    if(!IPAddress.TryParse(FtpAddressBox.Text, out ftp_ip))
-                    {
-                        ShowErrorBox("FTP address is invalid");
-                        return;
-                    }
-
-                    if(!int.TryParse(FtpPortBox.Text, out ftp_port))
-                    {
-                        ShowErrorBox("FTP port is invalid");
-                        return;
-                    }
-
-                    if(CancelAmiiboCreation($"'ftp://{ftp_ip.ToString()}:{ftp_port}{ftp_sd_folder}'"))
+                    // If we're saving normally and we're not using the last path, ask the user for the path
+                    base_dir = SelectDirectory();
+                    if(base_dir == null)
                     {
                         // User cancelled
                         return;
                     }
                 }
+
+                if(!CreateAllCheck.Checked)
+                {
+                    var cur_amiibo = CurrentSeriesAmiibos[AmiiboComboBox.SelectedIndex];
+                    if (string.IsNullOrEmpty(AmiiboNameBox.Text))
+                    {
+                        ShowErrorBox("No amiibo name was specified.");
+                        return;
+                    }
+
+                    bool use_name_as_dir = UseNameCheck.Checked;
+                    if (!use_name_as_dir && string.IsNullOrEmpty(DirectoryNameBox.Text))
+                    {
+                        ShowErrorBox("No amiibo directory name was specified.");
+                        return;
+                    }
+
+                    string name = AmiiboNameBox.Text;
+                    string dir_name = name;
+                    if (!use_name_as_dir)
+                    {
+                        dir_name = DirectoryNameBox.Text;
+                    }
+
+                    CreateAmiibo(name, dir_name, base_dir, cur_amiibo);
+                    MessageBox.Show("The virtual amiibo was successfully created.", DialogCaption, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
                 else
                 {
-                    if(use_last_path)
+                    var actual_base_dir = base_dir;
+                    AmiiboSeries = Amiibos.GetAmiiboSeries();
+                    if (AmiiboSeries.Any())
                     {
-                        if(CancelAmiiboCreation("the last used path"))
+                        foreach (var series in AmiiboSeries)
                         {
-                            // User cancelled
-                            return;
+                            base_dir = Path.Combine(actual_base_dir, series);
+                            FsUtils.RecreateDirectory(base_dir);
+                            CurrentSeriesAmiibos = Amiibos.GetAmiibosBySeries(series);
+                            if (CurrentSeriesAmiibos.Any())
+                            {
+                                foreach (var amiibo in CurrentSeriesAmiibos)
+                                {
+                                    CreateAmiibo(amiibo.AmiiboName, amiibo.AmiiboName, base_dir, amiibo);
+                                }
+                            }
+                            else
+                            {
+                                MessageBox.Show("Ey, no amiibos");
+                            }
                         }
-                        out_path = Path.Combine(LastUsedPath, dir_name);
                     }
                     else
                     {
-                        // If we're saving normally and we're not using the last path, ask the user for the path
-                        selected_path = SelectDirectory();
-                        if(selected_path == null)
-                        {
-                            // User cancelled
-                            return;
-                        }
-                        out_path = Path.Combine(selected_path, dir_name);
-                        if(CancelAmiiboCreation($"'{out_path}'"))
-                        {
-                            // User cancelled
-                            return;
-                        }
+                        MessageBox.Show("Ey, no series");
                     }
+                    MessageBox.Show("All virtual amiibos were successfully created.", DialogCaption, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
-
-                // Actually save the amiibo
-                var amiibo = AmiiboUtils.BuildAmiibo(cur_amiibo, name);
-                amiibo.Save(out_path, RandomizeUuidCheck.Checked, SaveImageCheck.Checked);
-
-                // Special handling for FTP
-                if(save_to_ftp)
-                {
-                    var success = true;
-                    using(var client = new FtpClient(ftp_ip.ToString(), ftp_port, new NetworkCredential("", "")))
-                    {
-                        client.ConnectTimeout = 1000;
-                        client.Connect();
-                        foreach(var file in Directory.GetFiles(out_path))
-                        {
-                            var file_name = Path.GetFileName(file);
-                            // Upload each file created, creating directories along the way
-                            var status = client.UploadFile(file, ftp_sd_folder + file_name, createRemoteDir: true);
-                            if(status != FtpStatus.Success)
-                            {
-                                success = false;
-                                break;
-                            }
-                        }
-                        client.Disconnect();
-                    }
-
-                    ExceptionUtils.Unless(success, "Error during FTP upload, please try again");
-
-                    // Clean the temp directory
-                    Directory.Delete(ftp_tmp_path, true);
-                }
-                else
-                {
-                    if(!use_last_path)
-                    {
-                        // Update last used path
-                        LastUsedPath = selected_path;
-                    }
-                }
-
-                MessageBox.Show("The virtual amiibo was successfully created.", DialogCaption, MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 ExceptionUtils.LogExceptionMessage(ex);
             }
+
             LastPathLabel.Visible = LastPathCheck.Visible = !string.IsNullOrEmpty(LastUsedPath);
-            if(LastPathLabel.Visible)
+            if (LastPathLabel.Visible)
             {
                 LastPathLabel.Text = "Last path: " + LastUsedPath;
             }
@@ -309,6 +329,10 @@ namespace emutool
         private void CheckBox3_CheckedChanged(object sender, EventArgs e)
         {
             DirectoryNameBox.Enabled = !UseNameCheck.Checked;
+            if (!UseNameCheck.Checked)
+            {
+                CreateAllCheck.Checked = false;
+            }
         }
 
         private void chkFTP_CheckedChanged(object sender, EventArgs e)
@@ -323,6 +347,23 @@ namespace emutool
             {
                 Process.Start("https://github.com/XorTroll/emuiibo");
             }
+        }
+
+        private void generateAllAmibosCheck_CheckedChanged(object sender, EventArgs e)
+        {
+            if (!CreateAllCheck.Checked)
+            {
+                AmiiboNameBox.Text = AmiiboComboBox.Text;
+            }
+            LastUsedPath = null;
+            LastPathLabel.Visible = false;
+            LastPathCheck.Checked = false;
+            UseNameCheck.Enabled = !CreateAllCheck.Checked;
+            AmiiboNameBox.Enabled = !CreateAllCheck.Checked;
+            DirectoryNameBox.Enabled = !CreateAllCheck.Checked && !UseNameCheck.Checked;
+            SeriesComboBox.Enabled = !CreateAllCheck.Checked;
+            AmiiboComboBox.Enabled = !CreateAllCheck.Checked;
+            AmiiboPictureBox.Visible = !CreateAllCheck.Checked;
         }
     }
 }

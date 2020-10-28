@@ -1,0 +1,22 @@
+[package]
+name = "emuiibo"
+version = "0.6.1"
+authors = ["XorTroll"]
+edition = "2018"
+
+[dependencies]
+nx = { git = "https://github.com/aarch64-switch-rs/nx" }
+paste = "1.0"
+
+[dependencies.serde]
+version = ""
+default-features = false
+features = ["derive"]
+
+[dependencies.serde_json]
+version = ""
+default-features = false
+features = ["alloc"]
+
+[package.metadata.sprinkle.nsp]
+npdm = "npdm.json"

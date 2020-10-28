@@ -35,8 +35,7 @@ namespace {
 
     // Returns true if the value changed
     inline bool UpdateCurrentApplicationIntercepted() {
-        bool ret = false;
-        emu::IsCurrentApplicationIdIntercepted(&ret);
+        bool ret = emu::IsCurrentApplicationIdIntercepted();
         if(ret != g_current_app_intercepted) {
             g_current_app_intercepted = ret;
             return true;
@@ -571,7 +570,7 @@ class EmuiiboOverlay : public tsl::Overlay {
         virtual void initServices() override {
             tsl::hlp::doWithSmSession([&] {
                 if(emu::IsAvailable()) {
-                    g_emuiibo_init_ok = R_SUCCEEDED(emu::Initialize());
+                    g_emuiibo_init_ok = R_SUCCEEDED(emu::Initialize()) && R_SUCCEEDED(pmdmntInitialize()) && R_SUCCEEDED(pminfoInitialize());
                     if(g_emuiibo_init_ok) {
                         g_emuiibo_version = emu::GetVersion();
                         emu::GetVirtualAmiiboDirectory(g_emuiibo_amiibo_dir, FS_MAX_PATH);
@@ -585,6 +584,8 @@ class EmuiiboOverlay : public tsl::Overlay {
         }
         
         virtual void exitServices() override {
+            pminfoExit();
+            pmdmntExit();
             emu::Exit();
         }
         
