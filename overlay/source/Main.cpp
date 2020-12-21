@@ -8,592 +8,574 @@
 #include <upng.h>
 
 namespace {
-
-    bool g_emuiibo_init_ok = false;
-    bool g_category_list_update_flag = false;
-    int g_category_list_last_index = 0;
-    bool g_current_app_intercepted = false;
-    char g_emuiibo_amiibo_dir[FS_MAX_PATH];
-    emu::Version g_emuiibo_version;
-
-    char g_active_amiibo_path[FS_MAX_PATH];
-    emu::VirtualAmiiboData g_active_amiibo_data;
-
-    unsigned char *g_img_buffer = {0};
-    int g_img_width;
-    bool g_current_img_ok = false;
-    std::string g_img_error_msg;
-    upng_t* upng;
-
-    inline bool IsActiveAmiiboValid() {
-        return strlen(g_active_amiibo_path) > 0;
+    const std::unordered_map<u64, std::string> KEY_GLYPH = {
+        { KEY_RSTICK, "\uE105" },
+        { KEY_L, "\uE0E4" },
+        { KEY_R, "\uE0E5" },
+        { KEY_A, "\uE0A0" },
+    };
+    int marginIcon() {
+        return 5;
     }
-
-    inline void UpdateActiveAmiibo() {
-        emu::GetActiveVirtualAmiibo(&g_active_amiibo_data, g_active_amiibo_path, FS_MAX_PATH);
+    int maxIconHeigth() {
+        return 130 - 2 * marginIcon();
     }
+    int maxIconWidth() {
+        return tsl::cfg::LayerWidth / 2 - 2 * marginIcon();
+    }
+}
 
-    // Returns true if the value changed
-    inline bool UpdateCurrentApplicationIntercepted() {
-        bool ret = emu::IsCurrentApplicationIdIntercepted();
-        if(ret != g_current_app_intercepted) {
-            g_current_app_intercepted = ret;
-            return true;
+class PngImage {
+
+    private:
+        bool is_error{false};
+        std::string error_text{""};
+        std::vector<u8> img_buffer{};
+        int img_buffer_width{0};
+        int img_buffer_height{0};
+
+    public:
+        PngImage() {
         }
-        return false;
-    }
 
-    inline std::string MakeActiveAmiiboText () {
-        if(IsActiveAmiiboValid()) {
-            std::string msg = g_active_amiibo_data.name;
-            return msg.append(" \uE105");
+        ~PngImage() {
+            closeFile();
         }
-        return "No active virtual amiibo";
-    }
 
-    inline std::string MakeTitleText() {
-        if(!g_emuiibo_init_ok) {
-            return "emuiibo";
-        }
-        return "emuiibo v" + std::to_string(g_emuiibo_version.major) + "." + std::to_string(g_emuiibo_version.minor) + "." + std::to_string(g_emuiibo_version.micro) + " (" + (g_emuiibo_version.dev_build ? "dev" : "release") + ")";
-    }
+        void openFile(const std::filesystem::path &png_path, const int max_height, const int max_width) {
+            closeFile();
 
-    inline std::string MakeStatusText() {
-        if(!g_emuiibo_init_ok) {
-            return "emuiibo was not accessed.";
+            tsl::hlp::doWithSDCardHandle([this, png_path, max_height, max_width] {
+                upng_t* upng = upng_new_from_file(png_path.c_str());
+                if (upng == NULL) {
+                    setError("Bad file");
+                    return;
+                }
+                upng_decode(upng);
+                switch(upng_get_error(upng)) {
+                    case UPNG_EOK: {
+                        bool is_rgb = ( upng_get_format(upng) == UPNG_RGB8 || upng_get_format(upng) == UPNG_RGB16 );
+                        /*
+                        *  DELETE ONCE RGB DOWNSCALE WORKS PROPERLY
+                        */
+                        if (is_rgb){
+                            setError("Please use RGBA PNG.");
+                            break;
+                        }
+                        /* DELETE END */
+
+                        int upng_width = upng_get_width(upng);
+                        int upng_height = upng_get_height(upng);
+                        int bpp = upng_get_bpp(upng);
+                        int bitdepth = upng_get_bitdepth(upng);
+                        int img_depth = bpp/bitdepth;
+                        double scale1 = (double)max_height / (double)upng_height;
+                        double scale2 = (double)max_width / (double)upng_width;
+                        double scale = std::min(scale1, scale2);
+                        if (scale > 1.0) {
+                            setError("Upscale not allowed.");
+                            break;
+                        }
+
+                        img_buffer_width = upng_width*scale;
+                        img_buffer_height = upng_height*scale;
+                        img_buffer.resize(img_buffer_width * img_buffer_height * img_depth);
+                        std::fill(img_buffer.begin(), img_buffer.end(), 0);
+
+                        /* DEBUG STRING START * /
+                        std::string dbg_string;
+                        if ( is_rgb ) {
+                            dbg_string += "RGB - ";
+                            //MAKE SOME MAGIC HERE TO PROPERLY DOWNSCALE RGB
+                        } else {
+                            dbg_string += "RGBA - ";
+                        }
+                        dbg_string += std::to_string(bpp) + "/" + std::to_string(bitdepth) + " ";
+                        dbg_string += std::to_string(img_depth);
+                        / * DEBUG STRING END */
+
+                        for(int h = 0; h != img_buffer_height; ++h) {
+                            for(int w = 0; w != img_buffer_width; ++w) {
+                                int pixel = (h * (img_buffer_width *img_depth)) + (w*img_depth);
+                                int nearestMatch =  (((int)(h / scale) * (upng_width *img_depth)) + ((int)(w / scale) *img_depth));
+                                for(int d = 0; d != img_depth; ++d) {
+                                    img_buffer[pixel + d] =  upng_get_buffer(upng)[nearestMatch + d];
+                                }
+                            }
+                        }
+                        break;
+                    }
+                    case UPNG_ENOMEM: {
+                        setError("Image is too big.");
+                        break;
+                    }
+                    case UPNG_ENOTFOUND: {
+                        setError("Image not found.");
+                        break;
+                    }
+                    case UPNG_ENOTPNG: {
+                        setError("Image is not a PNG.");
+                        break;
+                    }
+                    case UPNG_EMALFORMED: {
+                        setError("PNG malformed.");
+                        break;
+                    }
+                    case UPNG_EUNSUPPORTED: {
+                        setError("This PNG not supported.");
+                        break;
+                    }
+                    case UPNG_EUNINTERLACED: {
+                        setError("Image interlacing is not supported.");
+                        break;
+                    }
+                    case UPNG_EUNFORMAT: {
+                        setError("Image color format is not supported.");
+                        break;
+                    }
+                    case UPNG_EPARAM: {
+                        setError("Invalid parameter.");
+                        break;
+                    }
+                }
+                upng_free(upng);
+            });
         }
-        std::string msg = "Emulation: ";
-        auto e_status = emu::GetEmulationStatus();
-        switch(e_status) {
+
+        void closeFile() {
+            error_text = {};
+            is_error = false;
+            img_buffer.clear();
+            img_buffer_height = 0;
+            img_buffer_width = 0;
+        }
+
+        const u8* getRGBABuffer() const {
+            if (img_buffer.empty()) {
+                return nullptr;
+            }
+            return img_buffer.data();
+        }
+
+        const int getHeight() const {
+            return img_buffer_height;
+        }
+
+        const int getWidth() const {
+            return img_buffer_width;
+        }
+
+        bool isError() const {
+            return is_error;
+        }
+
+        std::string getError() const {
+            return error_text;
+        }
+
+    private:
+
+        void setError(const std::string &text) {
+            closeFile();
+            is_error = true;
+            error_text = text;
+        }
+};
+
+class EmuiiboState {
+
+    private:
+        bool emuiibo_init_ok{false};
+        std::filesystem::path emuiibo_amiibo_dir;
+        emu::Version emuiibo_version;
+        std::filesystem::path active_amiibo_path;
+        emu::VirtualAmiiboData active_amiibo_data;
+        PngImage amiibo_image;
+
+    public:
+        bool isEmuiiboOk() const {
+            return emuiibo_init_ok;
+        }
+
+        bool isCurrentApplicationIdIntercepted() const {
+            return emu::IsCurrentApplicationIdIntercepted();
+        }
+
+        bool isActiveAmiiboValid() const {
+            return !active_amiibo_path.empty();
+        }
+
+        const emu::Version& getEmuiiboVersion() const {
+            return emuiibo_version;
+        }
+
+        std::string getEmuiiboVersionString() const {
+            if (!isEmuiiboOk()) {
+                return "Emuiibo not found...";
+            }
+            const auto& emuiibo_version = getEmuiiboVersion();
+            return std::to_string(emuiibo_version.major) + "." + std::to_string(emuiibo_version.minor) + "." + std::to_string(emuiibo_version.micro) + " (" + (emuiibo_version.dev_build ? "dev" : "release") + ")";
+        }
+
+        emu::EmulationStatus getEmulationStatus() const {
+            return emu::GetEmulationStatus();
+        }
+
+        std::string getEmuiiboVirtualAmiiboPath() const {
+            return emuiibo_amiibo_dir;
+        }
+
+        std::string getActiveVirtualAmiiboPath() const {
+            return active_amiibo_path;
+        }
+
+        emu::VirtualAmiiboStatus getActiveVirtualAmiiboStatus() const {
+            if(!isActiveAmiiboValid()) {
+                return emu::VirtualAmiiboStatus::Invalid;
+            }
+            return emu::GetActiveVirtualAmiiboStatus();
+        }
+
+        const emu::VirtualAmiiboData& getActiveVirtualAmiiboAmiiboData() const {
+            return active_amiibo_data;
+        }
+
+        bool getVirtualAmiiboAmiiboData(const std::string& path, emu::VirtualAmiiboData& data) const {
+            return R_SUCCEEDED(emu::TryParseVirtualAmiibo(const_cast<char*>(path.c_str()), path.size(), &data));
+        }
+
+        const PngImage& image() const {
+            return amiibo_image;
+        }
+
+        void initEmuiibo() {
+            tsl::hlp::doWithSmSession([this] {
+                if(emu::IsAvailable()) {
+                    emuiibo_init_ok = R_SUCCEEDED(emu::Initialize()) && R_SUCCEEDED(pmdmntInitialize()) && R_SUCCEEDED(pminfoInitialize());
+                    if(emuiibo_init_ok) {
+                        emuiibo_version = emu::GetVersion();
+                        char emuiibo_amiibo_dir_str[FS_MAX_PATH];
+                        emu::GetVirtualAmiiboDirectory(emuiibo_amiibo_dir_str, FS_MAX_PATH);
+                        emuiibo_amiibo_dir = std::string(emuiibo_amiibo_dir_str);
+                    }
+                }
+            });
+        }
+
+        void setEmulationStatus(const emu::EmulationStatus status) {
+            emu::SetEmulationStatus(status);
+        }
+
+        void toggleEmulationStatus() {
+            switch(getEmulationStatus()) {
             case emu::EmulationStatus::On: {
-                msg += "on\n";
-                auto v_status = emu::GetActiveVirtualAmiiboStatus();
-                switch(v_status) {
-                    case emu::VirtualAmiiboStatus::Invalid: {
-                        msg += "No active virtual amiibo.";
-                        break;
-                    }
-                    case emu::VirtualAmiiboStatus::Connected: {
-                        msg += "Virtual amiibo: ";
-                        msg += g_active_amiibo_data.name;
-                        msg += " (connected - select to disconnect)";
-                        break;
-                    }
-                    case emu::VirtualAmiiboStatus::Disconnected: {
-                        msg += "Virtual amiibo: ";
-                        msg += g_active_amiibo_data.name;
-                        msg += " (disconnected - select to connect)";
-                        break;
-                    }
-                }
-                msg += "\n";
-                if(g_current_app_intercepted) {
-                    msg += "Current game is being intercepted by emuiibo.";
-                }
-                else {
-                    msg += "Current game is not being intercepted.";
-                }
-                break;
-            }
-            case emu::EmulationStatus::Off: {
-                msg += "off";
-                break;
-            }
-        }
-        return msg;
-    }
-
-    inline std::string MakeGameInterceptedText() {
-        std::string msg = "";
-        if(g_current_app_intercepted) {
-            msg += "intercepted";
-        }
-        else {
-            msg += "not intercepted.";
-        }
-        return msg;
-    }
-
-    inline std::string MakeActiveAmiiboStatusText() {
-        std::string msg = "";
-        if(IsActiveAmiiboValid()) {
-            auto v_status = emu::GetActiveVirtualAmiiboStatus();
-            switch(v_status) {
-                case emu::VirtualAmiiboStatus::Invalid: {
-                    msg = "";
+                    setEmulationStatus(emu::EmulationStatus::Off);
                     break;
                 }
+            case emu::EmulationStatus::Off: {
+                    setEmulationStatus(emu::EmulationStatus::On);
+                    break;
+                }
+            }
+        }
+
+        void setActiveVirtualAmiibo(const std::string & path) {
+            emu::SetActiveVirtualAmiibo(const_cast<char*>(path.c_str()), path.size());
+            loadActiveAmiibo();
+        }
+
+        void setActiveVirtualAmiiboStatus(const emu::VirtualAmiiboStatus status) {
+            emu::SetActiveVirtualAmiiboStatus(status);
+        }
+
+        void toggleActiveVirtualAmiiboStatus() {
+            switch(getActiveVirtualAmiiboStatus()) {
                 case emu::VirtualAmiiboStatus::Connected: {
-                    msg = "connected";
+                    setActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
                     break;
                 }
                 case emu::VirtualAmiiboStatus::Disconnected: {
-                    msg = "disconnected";
+                    setActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
+                    break;
+                }
+                case emu::VirtualAmiiboStatus::Invalid: {
                     break;
                 }
             }
         }
-        return msg;
-    }
 
-    inline std::string MakeCategoryText(std::string category_path) {
-        std::string msg = "";
-        std::filesystem::path path = category_path;
-        msg = path.filename();
-        return msg;
-    }
+        void loadActiveAmiibo() {
+            char active_amiibo_path_str[FS_MAX_PATH];
+            emu::GetActiveVirtualAmiibo(&active_amiibo_data, active_amiibo_path_str, FS_MAX_PATH);
+            active_amiibo_path = std::string(active_amiibo_path_str);
 
-    inline void GetAndResizeImage(int new_height) {
-        g_current_img_ok = false;
-        g_img_error_msg = "";
-        if(IsActiveAmiiboValid()) {
-            tsl::hlp::doWithSDCardHandle([new_height] {
-                std::string amiibo_png_path = g_active_amiibo_path;
-                amiibo_png_path += "/amiibo.png";
-                upng = upng_new_from_file(amiibo_png_path.c_str());
-                if (upng != NULL) {
-                    upng_decode(upng);
-                    switch(upng_get_error(upng)) {
-                        case UPNG_EOK: {
-                            bool is_rgb = ( upng_get_format(upng) == UPNG_RGB8 || upng_get_format(upng) == UPNG_RGB16 );
-                            
-                            /* 
-                            *  DELETE ONCE RGB DOWNSCALE WORKS PROPERLY
-                            */ 
-                            if (is_rgb){
-                                g_img_error_msg = "Please use RGBA PNG.";
-                                break;   
-                            }
-                            /* DELETE END */ 
-
-                            int old_width = upng_get_width(upng);
-                            int old_height = upng_get_height(upng);
-                            int bpp = upng_get_bpp(upng);
-                            int bitdepth = upng_get_bitdepth(upng);
-                            int img_depth = bpp/bitdepth;
-                            double scale = (double)new_height / (double)old_height;
-                            int new_width = old_width*scale;
-                            delete[] g_img_buffer;
-                            g_img_buffer = new unsigned char [new_width * new_height * img_depth];
-                            g_img_width = new_width;
-
-                            
-                            /* DEBUG STRING START * /
-                            if ( is_rgb ) {
-                                g_img_error_msg += "RGB - ";
-                                //MAKE SOME MAGIC HERE TO PROPERLY DOWNSCALE RGB
-                            } else {
-                                g_img_error_msg += "RGBA - ";
-                            }
-                            / * DEBUG STRING END */
-
-                            g_img_error_msg += std::to_string(bpp) + "/" + std::to_string(bitdepth) + " ";
-                            g_img_error_msg += std::to_string(img_depth);
-                            
-                            for(int h = 0; h != new_height; ++h) {
-                                for(int w = 0; w != new_width; ++w) {
-                                    int pixel = (h * (new_width *img_depth)) + (w*img_depth);
-                                    int nearestMatch =  (((int)(h / scale) * (old_width *img_depth)) + ((int)(w / scale) *img_depth));
-                                    for(int d = 0; d != img_depth; ++d) {
-                                        g_img_buffer[pixel + d] =  upng_get_buffer(upng)[nearestMatch + d];
-                                    }
-                                }
-                            }
-                            g_current_img_ok = true;
-                            break;
-                        }
-                        case UPNG_ENOMEM: {
-                            g_img_error_msg = "Image is too big.";
-                            break;
-                        }
-                        case UPNG_ENOTFOUND: {
-                            g_img_error_msg = "Image not found.";
-                            break;
-                        }
-                        case UPNG_ENOTPNG: {
-                            g_img_error_msg = "Image is not a PNG.";
-                            break;
-                        }
-                        case UPNG_EMALFORMED: {
-                            g_img_error_msg = "PNG malformed.";
-                            break;
-                        }
-                        case UPNG_EUNSUPPORTED: {
-                            g_img_error_msg = "This PNG not supported.";
-                            break;
-                        }
-                        case UPNG_EUNINTERLACED: {
-                            g_img_error_msg = "Image interlacing is not supported.";
-                            break;
-                        }
-                        case UPNG_EUNFORMAT: {
-                            g_img_error_msg = "Image color format is not supported.";
-                            break;
-                        }
-                        case UPNG_EPARAM: {
-                            g_img_error_msg = "Invalid parameter.";
-                            break;
-                        }
-                    }
-                    upng_free(upng);
-                }
-            });
-        }
-    }
-
-
-}
-
-class AmiiboList : public tsl::Gui {
-
-    private:
-        tslext::elm::DoubleSectionOverlayFrame *root_frame;
-        tslext::elm::CustomCategoryHeader *category_header;
-        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status \uE0E4 \uE0E5",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
-        tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
-        tslext::elm::SmallListItem *amiibo_header;
-        tsl::elm::List *top_list;
-        tsl::elm::List *bottom_list;
-        std::string amiibo_path;
-
-    public:
-        AmiiboList(const std::string &path) : root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), " ", tslext::SectionsLayout::same, true)), amiibo_path(path) {}
-
-        bool OnItemClick(u64 keys, const std::string &path) {
-            if(keys & KEY_A) {
-                char amiibo_path[FS_MAX_PATH] = {0};
-                strcpy(amiibo_path, path.c_str());
-                // Set active amiibo and update our active amiibo value
-                emu::SetActiveVirtualAmiibo(amiibo_path, FS_MAX_PATH);
-                UpdateActiveAmiibo();
-                GetAndResizeImage(80);
-                return true;   
+            amiibo_image.closeFile();
+            if(isActiveAmiiboValid()) {
+                amiibo_image.openFile(active_amiibo_path / "amiibo.png", maxIconHeigth(), maxIconWidth());
             }
-            return false;
         }
-
-        virtual tsl::elm::Element *createUI() override {
-            top_list = new tsl::elm::List();
-            bottom_list = new tsl::elm::List();
-            amiibo_header = new tslext::elm::SmallListItem(MakeActiveAmiiboText());
-            amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
-            
-            u32 count = 0;
-            tsl::hlp::doWithSDCardHandle([&](){
-                auto dir = opendir(this->amiibo_path.c_str());
-                if(dir) {
-                    while(true) {
-                        auto entry = readdir(dir);
-                        if(entry == nullptr) {
-                            break;
-                        }
-                        char path[FS_MAX_PATH] = {0};
-                        auto str_path = this->amiibo_path + "/" + entry->d_name;
-                        strcpy(path, str_path.c_str());
-                        // Find virtual amiibo
-                        emu::VirtualAmiiboData data = {};
-                        if(R_SUCCEEDED(emu::TryParseVirtualAmiibo(path, FS_MAX_PATH, &data))) {
-                            auto item = new tslext::elm::SmallListItem(data.name);
-                            item->setClickListener(std::bind(&AmiiboList::OnItemClick, this, std::placeholders::_1, str_path));
-                            bottom_list->addItem(item);
-                            count++;
-                        }
-                    }
-                    closedir(dir);
-                }
-            });
-
-            toggle_item->setClickListener([&](u64 keys) {
-                if(keys & KEY_A){
-                    if (emu::GetEmulationStatus()==emu::EmulationStatus::On) {
-                        emu::SetEmulationStatus(emu::EmulationStatus::Off);
-                    } else {
-                        emu::SetEmulationStatus(emu::EmulationStatus::On);
-                    }
-                    return true;
-                }
-                return false;
-            });
-
-            root_frame->setClickListener([&](u64 keys) { 
-                if(keys & KEY_RSTICK) {
-                    if(IsActiveAmiiboValid()) {
-                        // User selected the active amiibo, so let's change connection then
-                        auto status = emu::GetActiveVirtualAmiiboStatus();
-                        switch(status) {
-                            case emu::VirtualAmiiboStatus::Connected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                break;
-                            }
-                            case emu::VirtualAmiiboStatus::Disconnected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                break;
-                            }
-                            default:
-                                break;
-                        }
-                        return true;
-                    }
-                }
-                if(keys & KEY_R) {
-                    emu::SetEmulationStatus(emu::EmulationStatus::On);
-                    
-                    return true;
-                }
-                if(keys & KEY_L) {
-                    emu::SetEmulationStatus(emu::EmulationStatus::Off);
-                    return true;
-                }
-                return false;
-            });
-
-            top_list->addItem(toggle_item);
-            top_list->addItem(game_header);
-            top_list->addItem(new tslext::elm::CustomCategoryHeader("current amiibo",false,true));
-            top_list->addItem(new tsl::elm::CustomDrawer([](tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
-                if(g_current_img_ok){
-                    renderer->drawBitmap(x + 5, y + 5, g_img_width, 80, g_img_buffer);
-                } else {
-                    renderer->drawString(g_img_error_msg.c_str(), false, x + 15, y + 50, 15, renderer->a(tsl::style::color::ColorText));
-                }
-            }), 90);
-            top_list->addItem(amiibo_header);
-            category_header = new tslext::elm::CustomCategoryHeader("available amiibos in " + MakeCategoryText(amiibo_path) + ": " + std::to_string(count), false, true); 
-            top_list->addItem(category_header);
-
-            root_frame->setTopSection(top_list);
-            root_frame->setBottomSection(bottom_list);
-            return root_frame;
-        }
-
-        virtual void update() override {
-            UpdateCurrentApplicationIntercepted();
-            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
-            this->amiibo_header->setText(MakeActiveAmiiboText());
-            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
-            this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);
-        }
-
 };
 
-class MainGui : public tsl::Gui {
+class AmiiboElement: public tslext::elm::SmallListItem {
+    private:
+        std::shared_ptr<EmuiiboState> emuiibo;
+        std::filesystem::path amiibo_path;
+
+    public:
+        AmiiboElement(std::shared_ptr<EmuiiboState> state, const std::filesystem::path& path, const emu::VirtualAmiiboData& data) : tslext::elm::SmallListItem(data.name, KEY_GLYPH.at(KEY_A)), emuiibo{state}, amiibo_path{path} {
+            setClickListener([this] (u64 keys) {
+                if(keys & KEY_A) {
+                    if (emuiibo->getActiveVirtualAmiiboPath() != getPath()) {
+                        emuiibo->setActiveAmiibo(getPath());
+                    }
+                    else {
+                        emuiibo->toggleActiveVirtualAmiiboStatus();
+                    }
+                    return true;
+                }
+                return false;
+            });
+        }
+
+        std::filesystem::path getPath() const {
+            return amiibo_path;
+        }
+
+        static bool isAmiiboItem(const tsl::elm::Element* item) {
+            return dynamic_cast<const AmiiboElement*>(item) != nullptr;
+        }
+};
+
+class AmiiboIcons: public tsl::elm::Element {
 
     private:
-        tslext::elm::SmallToggleListItem *toggle_item = new tslext::elm::SmallToggleListItem("emulation status \uE0E4 \uE0E5",emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false,"on","off");
-        tslext::elm::SmallListItem *game_header = new tslext::elm::SmallListItem("current game is");
-        tsl::elm::List *bottom_list;
-        tslext::elm::SmallListItem *amiibo_header;
-        tslext::elm::DoubleSectionOverlayFrame *root_frame;
-        
+        std::shared_ptr<EmuiiboState> emuiibo;
+
     public:
-        MainGui() : bottom_list(new tsl::elm::List()), amiibo_header(new tslext::elm::SmallListItem(MakeActiveAmiiboText())), root_frame(new tslext::elm::DoubleSectionOverlayFrame(MakeTitleText(), " ", tslext::SectionsLayout::same, true)) {}
+        AmiiboIcons(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {
+        }
 
-        void Refresh() {
-            this->game_header->setColoredValue(MakeGameInterceptedText(), g_current_app_intercepted ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
-            this->amiibo_header->setText(MakeActiveAmiiboText());
-            this->amiibo_header->setColoredValue(MakeActiveAmiiboStatusText(), emu::GetActiveVirtualAmiiboStatus()==emu::VirtualAmiiboStatus::Disconnected ? tslext::style::color::ColorWarning : tsl::style::color::ColorHighlight);
-            this->toggle_item->setState(emu::GetEmulationStatus()==emu::EmulationStatus::On?true:false);
-            if(g_category_list_update_flag) {
-                g_category_list_update_flag = false; //back from amiibos
-                //if (bottom_list->getItemAtIndex(g_category_list_last_index) != nullptr) //better safe than sorry
-                    bottom_list->setFocusedIndex(g_category_list_last_index);
+    private:
+        virtual void draw(gfx::Renderer* renderer) override {
+            renderer->enableScissoring(ELEMENT_BOUNDS(this));
+            drawCustom(renderer, ELEMENT_BOUNDS(this));
+            renderer->disableScissoring();
+        }
+
+        virtual void layout(u16 parentX, u16 parentY, u16 parentWidth, u16 parentHeight) override {
+        }
+
+        void drawIcon(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h, const PngImage& image) {
+            const auto margin_icon = marginIcon();
+            if(image.getRGBABuffer()){
+                renderer->drawBitmap(x + margin_icon, y + margin_icon, image.getWidth(), image.getHeight(), image.getRGBABuffer());
+            } else {
+                const auto font_size = 15;
+                renderer->drawString(image.getError().c_str(), false,
+                                     x - w / 2 + margin_icon,
+                                     y + h / 2,
+                                     font_size, renderer->a(tsl::style::color::ColorText));
             }
         }
 
-        bool OnAmiiboHeaderClick(u64 keys, const std::string &path) {
-            if(keys & KEY_A) {
-                char amiibo_path[FS_MAX_PATH] = {0};
-                strcpy(amiibo_path, path.c_str());
-                if(IsActiveAmiiboValid()) {
-                    if(strcmp(g_active_amiibo_path, amiibo_path) == 0) {
-                        // User selected the active amiibo, so let's change connection then
-                        auto status = emu::GetActiveVirtualAmiiboStatus();
-                        switch(status) {
-                            case emu::VirtualAmiiboStatus::Connected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                break;
-                            }
-                            case emu::VirtualAmiiboStatus::Disconnected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                break;
-                            }
-                            default:
-                                break;
-                        }
-                        return true;
-                    }
-                }
-                return true;   
+        void drawCustom(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
+            if (!emuiibo->isActiveAmiiboValid()) {
+                return;
             }
-            return false;
+            drawIcon(renderer, x + w / 2 - emuiibo->image().getWidth() / 2 - marginIcon(), y, w, h, emuiibo->image());
         }
+};
 
+class AmiiboGui : public tsl::Gui {
+
+    private:
+        std::shared_ptr<EmuiiboState> emuiibo;
+        const std::filesystem::path base_path;
+        tslext::elm::DoubleSectionOverlayFrame *root_frame{nullptr};
+        tslext::elm::SmallToggleListItem *toggle_item{nullptr};
+        tslext::elm::SmallListItem *game_header{nullptr};
+        tslext::elm::SmallListItem *amiibo_header{nullptr};
+        AmiiboIcons* amiibo_icons;
+        tsl::elm::List *top_list{nullptr};
+        tsl::elm::List *bottom_list{nullptr};
+
+    public:
+        AmiiboGui(std::shared_ptr<EmuiiboState> state, const std::filesystem::path &path) : emuiibo{state}, base_path(path) {}
 
         virtual tsl::elm::Element *createUI() override {
-            auto top_list = new tsl::elm::List();
-            
-            if(g_emuiibo_init_ok) {
-                
-                toggle_item->setStateChangedListener([&](bool status) {
-                    if(status)
-                        emu::SetEmulationStatus(emu::EmulationStatus::Off);
-                    else
-                        emu::SetEmulationStatus(emu::EmulationStatus::On);
-                });
-                
-                amiibo_header->setClickListener(std::bind(&MainGui::OnAmiiboHeaderClick, this, std::placeholders::_1, g_emuiibo_amiibo_dir));
+            // View frame with 2 section
+            root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::same, true);
 
-                // Root
-                auto root_item = new tslext::elm::SmallListItem("<root>");
-                root_item->setClickListener([&, root_item] (u64 keys) {
-                    if(keys & KEY_A) {
-                        g_category_list_last_index = bottom_list->getIndexInList(root_item);
-                        g_category_list_update_flag = true;
-                        tsl::changeTo<AmiiboList>(g_emuiibo_amiibo_dir);
-                        return true;
-                    }
-                    return false;
-                });
-                bottom_list->addItem(root_item);
+            // Top and bottom containers
+            top_list = new tsl::elm::List();
+            root_frame->setTopSection(top_list);
+            bottom_list = new tsl::elm::List();
+            root_frame->setBottomSection(bottom_list);
 
-                u32 count = 1; // Root
-                tsl::hlp::doWithSDCardHandle([&](){
-                    auto dir = opendir(g_emuiibo_amiibo_dir);
+            if(!emuiibo->isEmuiiboOk()) {
+                return root_frame;
+            }
+
+            // Iterate base folder
+            u32 amiibo_count = 0;
+            if (base_path == "" || base_path == ".") {
+                bottom_list->addItem(createRootElement());
+            }
+            else {
+                tsl::hlp::doWithSDCardHandle([this, &amiibo_count](){
+                    auto dir = opendir(base_path.c_str());
                     if(dir) {
                         while(true) {
                             auto entry = readdir(dir);
                             if(entry == nullptr) {
                                 break;
                             }
-                            char path[FS_MAX_PATH] = {0};
-                            auto str_path = std::string(g_emuiibo_amiibo_dir) + "/" + entry->d_name;
-                            strcpy(path, str_path.c_str());
-                            // If it's a valid amiibo, skip
-                            emu::VirtualAmiiboData tmp_data;
-                            if(R_SUCCEEDED(emu::TryParseVirtualAmiibo(path, FS_MAX_PATH, &tmp_data))) {
+                            if(!(entry->d_type & DT_DIR)) {
                                 continue;
                             }
-                            if(entry->d_type & DT_DIR) {
-                                auto item = new tslext::elm::SmallListItem(entry->d_name);
-                                item->setClickListener([&, item, path] (u64 keys) {
-                                    if(keys & KEY_A) {
-                                        g_category_list_last_index = bottom_list->getIndexInList(item);
-                                        g_category_list_update_flag = true;
-                                        tsl::changeTo<AmiiboList>(path);
-                                        return true;
-                                    }
-                                    return false;
-                                });
-                                bottom_list->addItem(item);
-                                count++;
+                            const auto dir_path = base_path / entry->d_name;
+                            tsl::elm::Element* item = createAmiiboElement(dir_path);
+                            if (!item) {
+                                item = createDirectoryElement(dir_path, entry->d_name);
                             }
+                            else {
+                                amiibo_count++;
+                            }
+                            bottom_list->addItem(item);
                         }
                         closedir(dir);
                     }
                 });
-
-                top_list->addItem(toggle_item);
-                top_list->addItem(game_header);
-                top_list->addItem(new tslext::elm::CustomCategoryHeader("current amiibo",false,true));
-                top_list->addItem(new tsl::elm::CustomDrawer([](tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
-                    if(g_current_img_ok){
-                        renderer->drawBitmap(x + 5, y + 5, g_img_width, 80, g_img_buffer);
-                    } else {
-                        renderer->drawString(g_img_error_msg.c_str(), false, x + 15, y + 50, 15, renderer->a(tsl::style::color::ColorText));
-                    }
-                }), 90);
-                top_list->addItem(amiibo_header);
-                top_list->addItem(new tslext::elm::CustomCategoryHeader("available categories: " + std::to_string(count),false,true));
-            }
-            else {
-                top_list->addItem(new tslext::elm::BigCategoryHeader(MakeStatusText(), true));
             }
 
+            // Emuiibo emulation status
+            toggle_item = new tslext::elm::SmallToggleListItem("Emulation status " + KEY_GLYPH.at(KEY_L) + " " + KEY_GLYPH.at(KEY_R), false, "on", "off");
             toggle_item->setClickListener([&](u64 keys) {
                 if(keys & KEY_A){
-                    if (emu::GetEmulationStatus()==emu::EmulationStatus::On) {
-                        emu::SetEmulationStatus(emu::EmulationStatus::Off);
-                    } else {
-                        emu::SetEmulationStatus(emu::EmulationStatus::On);
-                    }
+                    emuiibo->toggleEmulationStatus();
                     return true;
                 }
                 return false;
             });
+            top_list->addItem(toggle_item);
 
-            root_frame->setClickListener([&](u64 keys) { 
+            // Current game status
+            game_header = new tslext::elm::SmallListItem("Current game is");
+            top_list->addItem(game_header);
+
+            // Current amiibo
+            amiibo_header = new tslext::elm::SmallListItem("");
+            top_list->addItem(amiibo_header);
+
+            // Current amiibo icon
+            amiibo_icons = new AmiiboIcons(emuiibo);
+            top_list->addItem(amiibo_icons, maxIconHeigth() + 2 * marginIcon());
+
+            // Information about base folder
+            top_list->addItem(new tslext::elm::SmallListItem(std::string("Available amiibos in '") + base_path.filename().string() + "'", std::to_string(amiibo_count)));
+
+            // Main key bindings
+            root_frame->setClickListener([&](u64 keys) {
                 if(keys & KEY_RSTICK) {
-                    if(IsActiveAmiiboValid()) {
-                        // User selected the active amiibo, so let's change connection then
-                        auto status = emu::GetActiveVirtualAmiiboStatus();
-                        switch(status) {
-                            case emu::VirtualAmiiboStatus::Connected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Disconnected);
-                                break;
-                            }
-                            case emu::VirtualAmiiboStatus::Disconnected: {
-                                emu::SetActiveVirtualAmiiboStatus(emu::VirtualAmiiboStatus::Connected);
-                                break;
-                            }
-                            default:
-                                break;
-                        }
-                        return true;
-                    }
+                    emuiibo->toggleActiveVirtualAmiiboStatus();
+                    return true;
                 }
                 if(keys & KEY_R) {
-                    emu::SetEmulationStatus(emu::EmulationStatus::On);
-                    
+                    emuiibo->setEmulationStatus(emu::EmulationStatus::On);
                     return true;
                 }
                 if(keys & KEY_L) {
-                    emu::SetEmulationStatus(emu::EmulationStatus::Off);
+                    emuiibo->setEmulationStatus(emu::EmulationStatus::Off);
                     return true;
                 }
                 return false;
             });
 
-            root_frame->setTopSection(top_list);
-            root_frame->setBottomSection(bottom_list);
-            return this->root_frame;
+            update();
+
+            return root_frame;
         }
 
         virtual void update() override {
-            UpdateCurrentApplicationIntercepted();
-            this->Refresh();
+            if(!emuiibo->isEmuiiboOk()) {
+                return;
+            }
+
+            game_header->setColoredValue(emuiibo->isCurrentApplicationIdIntercepted() ? "intercepted" : "not intercepted",
+                                         emuiibo->isCurrentApplicationIdIntercepted() ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
+
+            if(emuiibo->isActiveAmiiboValid()) {
+                amiibo_header->setText(std::string(emuiibo->getActiveVirtualAmiiboAmiiboData().name) + " " + KEY_GLYPH.at(KEY_RSTICK));
+            }
+            else {
+                amiibo_header->setText("No active virtual amiibo");
+            }
+            amiibo_header->setColoredValue(emuiibo->getActiveVirtualAmiiboStatus() == emu::VirtualAmiiboStatus::Connected ? "connected" : "disconnected",
+                                           emuiibo->getActiveVirtualAmiiboStatus() == emu::VirtualAmiiboStatus::Connected ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
+
+            toggle_item->setState(emuiibo->getEmulationStatus() == emu::EmulationStatus::On ? true : false);
+
+            tsl::Gui::update();
         }
 
+    private:
+        tsl::elm::Element * createRootElement() {
+            auto item = new tslext::elm::SmallListItem("View amiibos...");
+            item->setClickListener([this] (u64 keys) {
+                if(keys & KEY_A) {
+                    tsl::changeTo<AmiiboGui>(emuiibo, emuiibo->getEmuiiboVirtualAmiiboPath());
+                    return true;
+                }
+                return false;
+            });
+            return item;
+        }
+
+        tsl::elm::Element * createDirectoryElement(const std::filesystem::path& path, const std::string& directory_name) {
+            auto item = new tslext::elm::SmallListItem(directory_name);
+            item->setClickListener([this, path] (u64 keys) {
+                if(keys & KEY_A) {
+                    tsl::changeTo<AmiiboGui>(emuiibo, path);
+                    return true;
+                }
+                return false;
+            });
+            return item;
+        }
+
+        tsl::elm::Element * createAmiiboElement(const std::filesystem::path& path) {
+            emu::VirtualAmiiboData data = {};
+            if(!emuiibo->getVirtualAmiiboAmiiboData(path, data)) {
+                return nullptr;
+            }
+            auto item = new AmiiboElement(emuiibo, path, data);
+            return item;
+        }
 };
 
 class EmuiiboOverlay : public tsl::Overlay {
+    private:
+        std::shared_ptr<EmuiiboState> emuiibo;
 
     public:
-        virtual void initServices() override {
-            tsl::hlp::doWithSmSession([&] {
-                if(emu::IsAvailable()) {
-                    g_emuiibo_init_ok = R_SUCCEEDED(emu::Initialize()) && R_SUCCEEDED(pmdmntInitialize()) && R_SUCCEEDED(pminfoInitialize());
-                    if(g_emuiibo_init_ok) {
-                        g_emuiibo_version = emu::GetVersion();
-                        emu::GetVirtualAmiiboDirectory(g_emuiibo_amiibo_dir, FS_MAX_PATH);
-                    }
-                }
-            });
-            if(g_emuiibo_init_ok) {
-                UpdateActiveAmiibo();
-                GetAndResizeImage(80);
-            }
+        EmuiiboOverlay() {
+            emuiibo = std::make_shared<EmuiiboState>();
         }
-        
+
+        virtual void initServices() override {
+            emuiibo->initEmuiibo();
+        }
+
         virtual void exitServices() override {
             pminfoExit();
             pmdmntExit();
             emu::Exit();
         }
-        
-        virtual std::unique_ptr<tsl::Gui> loadInitialGui() override {
-            return initially<MainGui>();
-        }
 
+        virtual std::unique_ptr<tsl::Gui> loadInitialGui() override {
+            emuiibo->loadActiveAmiibo();
+            return initially<AmiiboGui>(emuiibo, ".");
+        }
 };
 
 int main(int argc, char **argv) {
