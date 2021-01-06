@@ -28,6 +28,7 @@ namespace {
 class PngImage {
 
     private:
+        std::filesystem::path path;
         bool is_error{false};
         std::string error_text{""};
         std::vector<u8> img_buffer{};
@@ -44,9 +45,9 @@ class PngImage {
 
         void openFile(const std::filesystem::path &png_path, const int max_height, const int max_width) {
             closeFile();
-
-            tsl::hlp::doWithSDCardHandle([this, png_path, max_height, max_width] {
-                upng_t* upng = upng_new_from_file(png_path.c_str());
+            path = png_path;
+            tsl::hlp::doWithSDCardHandle([this, max_height, max_width] {
+                upng_t* upng = upng_new_from_file(path.c_str());
                 if (upng == NULL) {
                     setError("Bad file");
                     return;
@@ -143,11 +144,16 @@ class PngImage {
         }
 
         void closeFile() {
+            path.clear();
             error_text = {};
             is_error = false;
             img_buffer.clear();
             img_buffer_height = 0;
             img_buffer_width = 0;
+        }
+
+        const std::filesystem::path& getPath() {
+            return path;
         }
 
         const u8* getRGBABuffer() const {
@@ -341,8 +347,8 @@ class AmiiboElement: public tslext::elm::SmallListItem {
             return amiibo_path;
         }
 
-        static bool isAmiiboItem(const tsl::elm::Element* item) {
-            return dynamic_cast<const AmiiboElement*>(item) != nullptr;
+        static const AmiiboElement* convertToAmiiboElement(const tsl::elm::Element* item) {
+          return dynamic_cast<const AmiiboElement *>(item);
         }
 };
 
@@ -350,9 +356,20 @@ class AmiiboIcons: public tsl::elm::Element {
 
     private:
         std::shared_ptr<EmuiiboState> emuiibo;
+        PngImage curent_amiibo_image;
 
     public:
         AmiiboIcons(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {
+        }
+
+        void setCurrentAmiiboPath(std::filesystem::path amiibo_path) {
+            if (amiibo_path.empty()) {
+                curent_amiibo_image.closeFile();
+                return;
+            }
+            if (curent_amiibo_image.getPath() != amiibo_path) {
+                curent_amiibo_image.openFile(amiibo_path / "amiibo.png", maxIconHeigth(), maxIconWidth());
+            }
         }
 
     private:
@@ -368,21 +385,22 @@ class AmiiboIcons: public tsl::elm::Element {
         void drawIcon(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h, const PngImage& image) {
             const auto margin_icon = marginIcon();
             if(image.getRGBABuffer()){
-                renderer->drawBitmap(x + margin_icon, y + margin_icon, image.getWidth(), image.getHeight(), image.getRGBABuffer());
+                renderer->drawBitmap(x + margin_icon / 2 + w / 2 - image.getWidth() / 2,
+                                     y + margin_icon,
+                                     image.getWidth(), image.getHeight(), image.getRGBABuffer());
             } else {
                 const auto font_size = 15;
                 renderer->drawString(image.getError().c_str(), false,
-                                     x - w / 2 + margin_icon,
+                                     x + margin_icon,
                                      y + h / 2,
                                      font_size, renderer->a(tsl::style::color::ColorText));
             }
         }
 
         void drawCustom(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
-            if (!emuiibo->isActiveAmiiboValid()) {
-                return;
-            }
-            drawIcon(renderer, x + w / 2 - emuiibo->image().getWidth() / 2 - marginIcon(), y, w, h, emuiibo->image());
+            renderer->drawRect(x + w / 2 - 1, y, 1, h, a(tsl::style::color::ColorText));
+            drawIcon(renderer, x, y, w / 2, h, emuiibo->image());
+            drawIcon(renderer, x + w / 2, y, w / 2, h, curent_amiibo_image);
         }
 };
 
@@ -512,6 +530,13 @@ class AmiiboGui : public tsl::Gui {
             }
             amiibo_header->setColoredValue(emuiibo->getActiveVirtualAmiiboStatus() == emu::VirtualAmiiboStatus::Connected ? "connected" : "disconnected",
                                            emuiibo->getActiveVirtualAmiiboStatus() == emu::VirtualAmiiboStatus::Connected ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
+
+            if (const auto amiibo_item = AmiiboElement::convertToAmiiboElement(getFocusedElement())) {
+                amiibo_icons->setCurrentAmiiboPath(amiibo_item->getPath());
+            }
+            else {
+                amiibo_icons->setCurrentAmiiboPath({});
+            }
 
             toggle_item->setState(emuiibo->getEmulationStatus() == emu::EmulationStatus::On ? true : false);
 
