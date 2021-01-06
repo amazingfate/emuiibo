@@ -5,6 +5,8 @@
 #include <tesla_extensions.hpp>
 #include <dirent.h>
 #include <filesystem>
+#include <fstream>
+#include <set>
 #include <upng.h>
 
 namespace {
@@ -14,6 +16,8 @@ namespace {
         { KEY_L, "\uE0E4" },
         { KEY_R, "\uE0E5" },
         { KEY_A, "\uE0A0" },
+        { KEY_Y, "\uE0A3" },
+        { KEY_X, "\uE0A2" },
     };
     int marginIcon() {
         return 5;
@@ -23,6 +27,9 @@ namespace {
     }
     int maxIconWidth() {
         return tsl::cfg::LayerWidth / 2 - 2 * marginIcon();
+    }
+    std::string favoritesFile() {
+        return "favorites.txt";
     }
 }
 
@@ -153,7 +160,7 @@ class PngImage {
             img_buffer_width = 0;
         }
 
-        const std::filesystem::path& getPath() {
+        const std::filesystem::path getPath() {
             return path;
         }
 
@@ -198,6 +205,7 @@ class EmuiiboState {
         std::filesystem::path active_amiibo_path;
         emu::VirtualAmiiboData active_amiibo_data;
         PngImage amiibo_image;
+        std::set<std::filesystem::path> favorites;
 
     public:
         bool isEmuiiboOk() const {
@@ -321,35 +329,134 @@ class EmuiiboState {
                 amiibo_image.openFile(active_amiibo_path / "amiibo.png", maxIconHeigth(), maxIconWidth());
             }
         }
+
+        void loadFavorites() {
+            favorites.clear();
+            tsl::hlp::doWithSDCardHandle([this](){
+                std::ifstream file(std::filesystem::path{getEmuiiboVirtualAmiiboPath()} / favoritesFile());
+                std::string path_str;
+                while (std::getline(file, path_str)) {
+                    const std::filesystem::path path{path_str};
+                    addToFavorite(getEmuiiboVirtualAmiiboPath() / path);
+                }
+            });
+        }
+
+        void saveFavorites() {
+            tsl::hlp::doWithSDCardHandle([this](){
+                std::ofstream file(std::filesystem::path{getEmuiiboVirtualAmiiboPath()} / favoritesFile(), std::ofstream::out | std::ofstream::trunc);
+                for (const auto path: favorites) {
+                    file << path.lexically_relative(getEmuiiboVirtualAmiiboPath()).string() << std::endl;
+                }
+            });
+        }
+
+        std::list<std::filesystem::path> getFavorites() const {
+            const std::list<std::filesystem::path> out{favorites.begin(), favorites.end()};
+            return out;
+        }
+
+        void addToFavorite(const std::filesystem::path& path) {
+            favorites.insert(path);
+        }
+
+        void removeFromFavorite(const std::filesystem::path& path) {
+            favorites.erase(path);
+        }
+
+        bool isFavorite(const std::filesystem::path& path) const {
+            return favorites.count(path) != 0;
+        }
 };
 
-class AmiiboElement: public tslext::elm::SmallListItem {
+class GuiListElement: public tslext::elm::SmallListItem {
     private:
         std::shared_ptr<EmuiiboState> emuiibo;
         std::filesystem::path amiibo_path;
+        std::function<void(GuiListElement&)> action_listener;
 
     public:
-        AmiiboElement(std::shared_ptr<EmuiiboState> state, const std::filesystem::path& path, const emu::VirtualAmiiboData& data) : tslext::elm::SmallListItem(data.name, KEY_GLYPH.at(KEY_A)), emuiibo{state}, amiibo_path{path} {
+        GuiListElement(std::shared_ptr<EmuiiboState> state, const std::filesystem::path& path, const std::string& label) : tslext::elm::SmallListItem(label), emuiibo{state}, amiibo_path{path} {
             setClickListener([this] (u64 keys) {
                 if(keys & KEY_A) {
-                    if (emuiibo->getActiveVirtualAmiiboPath() != getPath()) {
-                        emuiibo->setActiveAmiibo(getPath());
-                    }
-                    else {
-                        emuiibo->toggleActiveVirtualAmiiboStatus();
-                    }
-                    return true;
+                    action_listener(*this);
                 }
                 return false;
             });
+        }
+
+        void setActionListener(const std::function<void(GuiListElement&)>& listener) {
+            action_listener = listener;
         }
 
         std::filesystem::path getPath() const {
             return amiibo_path;
         }
 
-        static const AmiiboElement* convertToAmiiboElement(const tsl::elm::Element* item) {
-          return dynamic_cast<const AmiiboElement *>(item);
+        bool isFavorite() const {
+            return emuiibo->isFavorite(getPath());
+        }
+
+        void addToFavorite() {
+            if (canBeFavorite()) {
+                emuiibo->addToFavorite(getPath());
+                update();
+            }
+        }
+
+        void removeFromFavorite() {
+            emuiibo->removeFromFavorite(getPath());
+            update();
+        }
+
+        virtual bool canBeFavorite() const = 0;
+        virtual void update() = 0;
+};
+
+class VirtualListElement: public GuiListElement {
+    public:
+        VirtualListElement(std::shared_ptr<EmuiiboState> state, const std::string& label) : GuiListElement(state, {}, label) {
+            update();
+        }
+
+    private:
+        bool canBeFavorite() const {
+            return false;
+        }
+
+        void update() override {}
+};
+
+class FolderListElement: public GuiListElement {
+    public:
+        FolderListElement(std::shared_ptr<EmuiiboState> state, const std::filesystem::path& path) : GuiListElement(state, path, path.filename()) {
+            update();
+        }
+
+    private:
+        bool canBeFavorite() const {
+            return false;
+        }
+
+        void update() override {
+            setValue(isFavorite() ? "*" : "");
+        }
+};
+
+class AmiiboListElement: public GuiListElement {
+    public:
+        AmiiboListElement(std::shared_ptr<EmuiiboState> state, const std::filesystem::path& path, const emu::VirtualAmiiboData& data) : GuiListElement(state, path, data.name) {
+            update();
+        }
+
+    private:
+        bool canBeFavorite() const {
+            return true;
+        }
+
+        void update() override {
+            setValue(isFavorite() ? "* " + KEY_GLYPH.at(KEY_A)
+                                  : KEY_GLYPH.at(KEY_A));
         }
 };
 
@@ -360,8 +467,7 @@ class AmiiboIcons: public tsl::elm::Element {
         PngImage curent_amiibo_image;
 
     public:
-        AmiiboIcons(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {
-        }
+        AmiiboIcons(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {}
 
         void setCurrentAmiiboPath(std::filesystem::path amiibo_path) {
             if (amiibo_path.empty()) {
@@ -383,7 +489,7 @@ class AmiiboIcons: public tsl::elm::Element {
         virtual void layout(u16 parentX, u16 parentY, u16 parentWidth, u16 parentHeight) override {
         }
 
-        void drawIcon(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h, const PngImage& image) {
+        void drawIcon(tsl::gfx::Renderer* renderer, s32 x, s32 y, s32 w, s32 h, const PngImage& image) {
             const auto margin_icon = marginIcon();
             if(image.getRGBABuffer()){
                 renderer->drawBitmap(x + margin_icon / 2 + w / 2 - image.getWidth() / 2,
@@ -398,7 +504,7 @@ class AmiiboIcons: public tsl::elm::Element {
             }
         }
 
-        void drawCustom(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
+        void drawCustom(tsl::gfx::Renderer* renderer, s32 x, s32 y, s32 w, s32 h) {
             const auto margin_icon = marginIcon();
             renderer->drawRect(x + w / 2 - 1, y, 1, h - margin_icon, a(tsl::style::color::ColorText));
             drawIcon(renderer, x, y, w / 2, h, emuiibo->image());
@@ -414,7 +520,7 @@ class AmiiboGuiHelp : public tsl::Gui {
     public:
         AmiiboGuiHelp(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {}
 
-        virtual tsl::elm::Element *createUI() override {
+        virtual tsl::elm::Element* createUI() override {
             auto root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo Help", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::big_top, false);
             auto top_list = new tsl::elm::List();
             root_frame->setTopSection(top_list);
@@ -424,6 +530,8 @@ class AmiiboGuiHelp : public tsl::Gui {
             top_list->addItem(new tslext::elm::SmallListItem("Disable emulation", KEY_GLYPH.at(KEY_L)));
             top_list->addItem(new tslext::elm::SmallListItem("Connect/disconnect virtual emuiibo", KEY_GLYPH.at(KEY_RSTICK)));
             top_list->addItem(new tslext::elm::SmallListItem("Select virtual emuiibo", KEY_GLYPH.at(KEY_A)));
+            top_list->addItem(new tslext::elm::SmallListItem("Add virtual emuiibo to favorite", KEY_GLYPH.at(KEY_Y)));
+            top_list->addItem(new tslext::elm::SmallListItem("Remove virtual emuiibo from favorite", KEY_GLYPH.at(KEY_X)));
 
             return root_frame;
         }
@@ -431,8 +539,16 @@ class AmiiboGuiHelp : public tsl::Gui {
 
 class AmiiboGui : public tsl::Gui {
 
+    public:
+        enum class Type {
+            Root,
+            Favorites,
+            Folder,
+        };
+
     private:
         std::shared_ptr<EmuiiboState> emuiibo;
+        const Type gui_type;
         const std::filesystem::path base_path;
         tslext::elm::DoubleSectionOverlayFrame *root_frame{nullptr};
         tslext::elm::SmallToggleListItem *toggle_item{nullptr};
@@ -443,7 +559,7 @@ class AmiiboGui : public tsl::Gui {
         tsl::elm::List *bottom_list{nullptr};
 
     public:
-        AmiiboGui(std::shared_ptr<EmuiiboState> state, const std::filesystem::path &path) : emuiibo{state}, base_path(path) {}
+        AmiiboGui(std::shared_ptr<EmuiiboState> state, const Type type, const std::filesystem::path &path) : emuiibo{state}, gui_type{type}, base_path(path) {}
 
         virtual tsl::elm::Element *createUI() override {
             // View frame with 2 section
@@ -461,34 +577,44 @@ class AmiiboGui : public tsl::Gui {
 
             // Iterate base folder
             u32 amiibo_count = 0;
-            if (base_path == "" || base_path == ".") {
+            if (gui_type == Type::Root) {
                 bottom_list->addItem(createRootElement());
+                bottom_list->addItem(createFavoritesElement());
             }
             else {
-                tsl::hlp::doWithSDCardHandle([this, &amiibo_count](){
-                    auto dir = opendir(base_path.c_str());
-                    if(dir) {
-                        while(true) {
-                            auto entry = readdir(dir);
-                            if(entry == nullptr) {
-                                break;
+                std::list<std::filesystem::path> dir_paths;
+                if (gui_type == Type::Favorites) {
+                    dir_paths = emuiibo->getFavorites();
+                }
+                if (gui_type == Type::Folder) {
+                    tsl::hlp::doWithSDCardHandle([base_path = base_path, &dir_paths](){
+                        auto dir = opendir(base_path.c_str());
+                        if(dir) {
+                            while(true) {
+                                auto entry = readdir(dir);
+                                if(entry == nullptr) {
+                                    break;
+                                }
+                                if(!(entry->d_type & DT_DIR)) {
+                                    continue;
+                                }
+                                const auto dir_path = base_path / entry->d_name;
+                                dir_paths.push_back(dir_path);
                             }
-                            if(!(entry->d_type & DT_DIR)) {
-                                continue;
-                            }
-                            const auto dir_path = base_path / entry->d_name;
-                            tsl::elm::Element* item = createAmiiboElement(dir_path);
-                            if (!item) {
-                                item = createDirectoryElement(dir_path, entry->d_name);
-                            }
-                            else {
-                                amiibo_count++;
-                            }
-                            bottom_list->addItem(item);
+                            closedir(dir);
                         }
-                        closedir(dir);
+                    });
+                }
+                for (const auto dir_path: dir_paths) {
+                    if (tsl::elm::Element* item = createAmiiboElement(dir_path)) {
+                        bottom_list->addItem(item);
+                        amiibo_count++;
+                        continue;
                     }
-                });
+                    if (tsl::elm::Element* item = createFolderElement(dir_path)) {
+                        bottom_list->addItem(item);
+                    }
+                }
             }
 
             // Emuiibo emulation status
@@ -535,6 +661,16 @@ class AmiiboGui : public tsl::Gui {
                     emuiibo->setEmulationStatus(emu::EmulationStatus::Off);
                     return true;
                 }
+                if (auto* gui_item = dynamic_cast<GuiListElement*>(getFocusedElement())) {
+                    if (keys & KEY_Y) {
+                        gui_item->addToFavorite();
+                        return true;
+                    }
+                    if (keys & KEY_X) {
+                        gui_item->removeFromFavorite();
+                        return true;
+                    }
+                }
                 return false;
             });
 
@@ -560,7 +696,7 @@ class AmiiboGui : public tsl::Gui {
             amiibo_header->setColoredValue(emuiibo->getActiveVirtualAmiiboStatus() == emu::VirtualAmiiboStatus::Connected ? "connected" : "disconnected",
                                            emuiibo->getActiveVirtualAmiiboStatus() == emu::VirtualAmiiboStatus::Connected ? tsl::style::color::ColorHighlight : tslext::style::color::ColorWarning);
 
-            if (const auto amiibo_item = AmiiboElement::convertToAmiiboElement(getFocusedElement())) {
+            if (auto* amiibo_item = dynamic_cast<AmiiboListElement*>(getFocusedElement())) {
                 amiibo_icons->setCurrentAmiiboPath(amiibo_item->getPath());
             }
             else {
@@ -573,36 +709,44 @@ class AmiiboGui : public tsl::Gui {
         }
 
     private:
-        tsl::elm::Element * createRootElement() {
-            auto item = new tslext::elm::SmallListItem("View amiibos...");
-            item->setClickListener([this] (u64 keys) {
-                if(keys & KEY_A) {
-                    tsl::changeTo<AmiiboGui>(emuiibo, emuiibo->getEmuiiboVirtualAmiiboPath());
-                    return true;
-                }
-                return false;
+        tsl::elm::Element* createRootElement() {
+            auto item = new VirtualListElement(emuiibo, "View amiibos...");
+            item->setActionListener([this] (auto&) {
+                tsl::changeTo<AmiiboGui>(emuiibo, Type::Folder, emuiibo->getEmuiiboVirtualAmiiboPath());
             });
             return item;
         }
 
-        tsl::elm::Element * createDirectoryElement(const std::filesystem::path& path, const std::string& directory_name) {
-            auto item = new tslext::elm::SmallListItem(directory_name);
-            item->setClickListener([this, path] (u64 keys) {
-                if(keys & KEY_A) {
-                    tsl::changeTo<AmiiboGui>(emuiibo, path);
-                    return true;
-                }
-                return false;
+        tsl::elm::Element* createFavoritesElement() {
+            auto item = new VirtualListElement(emuiibo, "Favorites...");
+            item->setActionListener([this](auto&) {
+                tsl::changeTo<AmiiboGui>(emuiibo, Type::Favorites, "<favorites>");
             });
             return item;
         }
 
-        tsl::elm::Element * createAmiiboElement(const std::filesystem::path& path) {
+        tsl::elm::Element* createFolderElement(const std::filesystem::path& path) {
+            auto item = new FolderListElement(emuiibo, path);
+            item->setActionListener([this](auto& caller) {
+                tsl::changeTo<AmiiboGui>(emuiibo, Type::Folder, caller.getPath());
+            });
+            return item;
+        }
+
+        tsl::elm::Element* createAmiiboElement(const std::filesystem::path& path) {
             emu::VirtualAmiiboData data = {};
             if(!emuiibo->getVirtualAmiiboAmiiboData(path, data)) {
                 return nullptr;
             }
-            auto item = new AmiiboElement(emuiibo, path, data);
+            auto item = new AmiiboListElement(emuiibo, path, data);
+            item->setActionListener([this](auto& caller) {
+                if (emuiibo->getActiveVirtualAmiiboPath() != caller.getPath()) {
+                    emuiibo->setActiveVirtualAmiibo(caller.getPath());
+                }
+                else {
+                    emuiibo->toggleActiveVirtualAmiiboStatus();
+                }
+            });
             return item;
         }
 };
@@ -621,6 +765,7 @@ class EmuiiboOverlay : public tsl::Overlay {
         }
 
         virtual void exitServices() override {
+            emuiibo->saveFavorites();
             pminfoExit();
             pmdmntExit();
             emu::Exit();
@@ -628,7 +773,8 @@ class EmuiiboOverlay : public tsl::Overlay {
 
         virtual std::unique_ptr<tsl::Gui> loadInitialGui() override {
             emuiibo->loadActiveAmiibo();
-            return initially<AmiiboGui>(emuiibo, ".");
+            emuiibo->loadFavorites();
+            return initially<AmiiboGui>(emuiibo, AmiiboGui::Type::Root, "<root>");
         }
 };
 
