@@ -299,6 +299,11 @@ class EmuiiboState {
             loadActiveAmiibo();
         }
 
+        void ResetActiveVirtualAmiibo() {
+            emu::ResetActiveVirtualAmiibo();
+            loadActiveAmiibo();
+        }
+
         void setActiveVirtualAmiiboStatus(const emu::VirtualAmiiboStatus status) {
             emu::SetActiveVirtualAmiiboStatus(status);
         }
@@ -580,6 +585,7 @@ class AmiiboGui : public tsl::Gui {
             if (gui_type == Type::Root) {
                 bottom_list->addItem(createRootElement());
                 bottom_list->addItem(createFavoritesElement());
+                bottom_list->addItem(createResetElement());
             }
             else {
                 std::list<std::filesystem::path> dir_paths;
@@ -721,6 +727,15 @@ class AmiiboGui : public tsl::Gui {
             auto item = new VirtualListElement(emuiibo, "Favorites...");
             item->setActionListener([this](auto&) {
                 tsl::changeTo<AmiiboGui>(emuiibo, Type::Favorites, "<favorites>");
+            });
+            return item;
+        }
+
+        tsl::elm::Element* createResetElement() {
+            auto item = new VirtualListElement(emuiibo, "Reset active");
+            item->setActionListener([this](auto&) {
+                emuiibo->ResetActiveVirtualAmiibo();
+                update();
             });
             return item;
         }
