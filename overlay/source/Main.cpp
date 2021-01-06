@@ -10,6 +10,7 @@
 namespace {
     const std::unordered_map<u64, std::string> KEY_GLYPH = {
         { KEY_RSTICK, "\uE105" },
+        { KEY_LSTICK, "\uE08A" },
         { KEY_L, "\uE0E4" },
         { KEY_R, "\uE0E5" },
         { KEY_A, "\uE0A0" },
@@ -398,9 +399,33 @@ class AmiiboIcons: public tsl::elm::Element {
         }
 
         void drawCustom(tsl::gfx::Renderer *renderer, s32 x, s32 y, s32 w, s32 h) {
-            renderer->drawRect(x + w / 2 - 1, y, 1, h, a(tsl::style::color::ColorText));
+            const auto margin_icon = marginIcon();
+            renderer->drawRect(x + w / 2 - 1, y, 1, h - margin_icon, a(tsl::style::color::ColorText));
             drawIcon(renderer, x, y, w / 2, h, emuiibo->image());
             drawIcon(renderer, x + w / 2, y, w / 2, h, curent_amiibo_image);
+        }
+};
+
+class AmiiboGuiHelp : public tsl::Gui {
+
+    private:
+        std::shared_ptr<EmuiiboState> emuiibo;
+
+    public:
+        AmiiboGuiHelp(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {}
+
+        virtual tsl::elm::Element *createUI() override {
+            auto root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo Help", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::big_top, false);
+            auto top_list = new tsl::elm::List();
+            root_frame->setTopSection(top_list);
+
+            top_list->addItem(new tslext::elm::SmallListItem("Help", KEY_GLYPH.at(KEY_LSTICK)));
+            top_list->addItem(new tslext::elm::SmallListItem("Enable emulation", KEY_GLYPH.at(KEY_R)));
+            top_list->addItem(new tslext::elm::SmallListItem("Disable emulation", KEY_GLYPH.at(KEY_L)));
+            top_list->addItem(new tslext::elm::SmallListItem("Connect/disconnect virtual emuiibo", KEY_GLYPH.at(KEY_RSTICK)));
+            top_list->addItem(new tslext::elm::SmallListItem("Select virtual emuiibo", KEY_GLYPH.at(KEY_A)));
+
+            return root_frame;
         }
 };
 
@@ -422,7 +447,7 @@ class AmiiboGui : public tsl::Gui {
 
         virtual tsl::elm::Element *createUI() override {
             // View frame with 2 section
-            root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::same, true);
+            root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo (" + KEY_GLYPH.at(KEY_LSTICK) + " help)", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::same, true);
 
             // Top and bottom containers
             top_list = new tsl::elm::List();
@@ -494,6 +519,10 @@ class AmiiboGui : public tsl::Gui {
 
             // Main key bindings
             root_frame->setClickListener([&](u64 keys) {
+                if(keys & KEY_LSTICK) {
+                    tsl::changeTo<AmiiboGuiHelp>(emuiibo);
+                    return true;
+                }
                 if(keys & KEY_RSTICK) {
                     emuiibo->toggleActiveVirtualAmiiboStatus();
                     return true;
