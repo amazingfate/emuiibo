@@ -34,6 +34,19 @@ namespace {
         };
         return KEY_GLYPH.at(action);
     }
+    enum Icon {
+        Help,
+        Reset,
+        Favorite,
+    };
+    std::string iconGlyph(const Icon icon) {
+        static const std::unordered_map<Icon, std::string> KEY_GLYPH = {
+            { Icon::Help, "\uE142" },
+            { Icon::Reset, "\uE098" },
+            { Icon::Favorite, "\u2605" },
+        };
+        return KEY_GLYPH.at(icon);
+    }
     int marginIcon() {
         return 5;
     }
@@ -456,7 +469,7 @@ class FolderListElement: public GuiListElement {
     private:
         void update() override {
             const std::string value = "..";
-            setValue(isFavorite() ? "* " + value : value);
+            setValue(isFavorite() ? iconGlyph(Icon::Favorite) + " " + value : value);
         }
 };
 
@@ -473,7 +486,7 @@ class AmiiboListElement: public GuiListElement {
 
         void update() override {
             const std::string value = actionGlyph(Action::ActivateItem);
-            setValue(isFavorite() ? "* " + value : value);
+            setValue(isFavorite() ? iconGlyph(Icon::Favorite) + " " + value : value);
         }
 };
 
@@ -741,7 +754,7 @@ class AmiiboGui : public tsl::Gui {
         }
 
         tsl::elm::Element* createFavoritesElement() {
-            auto item = new VirtualListElement(emuiibo, "Favorites");
+            auto item = new VirtualListElement(emuiibo, "Favorites " + iconGlyph(Icon::Favorite));
             item->setActionListener([this](auto&) {
                 tsl::changeTo<AmiiboGui>(emuiibo, Type::Favorites, "<favorites>");
             });
@@ -749,7 +762,7 @@ class AmiiboGui : public tsl::Gui {
         }
 
         tsl::elm::Element* createResetElement() {
-            auto item = new ActionListElement(emuiibo, "Reset active");
+            auto item = new ActionListElement(emuiibo, "Reset active " + iconGlyph(Icon::Reset));
             item->setActionListener([this](auto&) {
                 emuiibo->ResetActiveVirtualAmiibo();
                 update();
