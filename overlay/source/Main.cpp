@@ -11,7 +11,7 @@
 
 namespace {
     enum Action : u64 {
-        Help = KEY_PLUS,
+        ShowHelp = KEY_PLUS,
         EnableEmulation = KEY_R,
         DisableEmulation = KEY_L,
         ActivateItem = KEY_A,
@@ -22,14 +22,14 @@ namespace {
     };
     std::string actionGlyph(const Action action) {
         static const std::unordered_map<u64, std::string> KEY_GLYPH = {
-            { KEY_RSTICK, "\uE105" },
-            { KEY_LSTICK, "\uE08A" },
-            { KEY_L, "\uE0E4" },
-            { KEY_R, "\uE0E5" },
+            { KEY_RSTICK, "\uE0C5" },
+            { KEY_LSTICK, "\uE0C4" },
+            { KEY_L, "\uE0A4" },
+            { KEY_R, "\uE0A5" },
             { KEY_A, "\uE0A0" },
             { KEY_Y, "\uE0A3" },
             { KEY_X, "\uE0A2" },
-            { KEY_MINUS, "\uE0B6" },
+            { KEY_MINUS, "\uE0B4" },
             { KEY_PLUS, "\uE0B5" },
         };
         return KEY_GLYPH.at(action);
@@ -254,7 +254,7 @@ class EmuiiboState {
 
         std::string getEmuiiboVersionString() const {
             if (!isEmuiiboOk()) {
-                return "Emuiibo not found...";
+                return "emuiibo not found...";
             }
             const auto& emuiibo_version = getEmuiiboVersion();
             return std::to_string(emuiibo_version.major) + "." + std::to_string(emuiibo_version.minor) + "." + std::to_string(emuiibo_version.micro) + " (" + (emuiibo_version.dev_build ? "dev" : "release") + ")";
@@ -551,15 +551,15 @@ class AmiiboGuiHelp : public tsl::Gui {
         AmiiboGuiHelp(std::shared_ptr<EmuiiboState> state) : emuiibo{state} {}
 
         virtual tsl::elm::Element* createUI() override {
-            auto root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo Help", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::big_top, false);
+            auto root_frame = new tslext::elm::DoubleSectionOverlayFrame("emuiibo help", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::big_top, false);
             auto top_list = new tsl::elm::List();
             root_frame->setTopSection(top_list);
 
-            top_list->addItem(new tslext::elm::SmallListItem("Help", actionGlyph(Action::Help)));
+            top_list->addItem(new tslext::elm::SmallListItem("Help", actionGlyph(Action::ShowHelp)));
             top_list->addItem(new tslext::elm::SmallListItem("Enable emulation", actionGlyph(Action::EnableEmulation)));
             top_list->addItem(new tslext::elm::SmallListItem("Disable emulation", actionGlyph(Action::DisableEmulation)));
-            top_list->addItem(new tslext::elm::SmallListItem("Connect/disconnect virtual emuiibo", actionGlyph(Action::ToogleConnectAmiibo)));
-            top_list->addItem(new tslext::elm::SmallListItem("Select folder/virtual emuiibo", actionGlyph(Action::ActivateItem)));
+            top_list->addItem(new tslext::elm::SmallListItem("Connect/disconnect virtual amiibo", actionGlyph(Action::ToogleConnectAmiibo)));
+            top_list->addItem(new tslext::elm::SmallListItem("Select folder/virtual amiibo", actionGlyph(Action::ActivateItem)));
             top_list->addItem(new tslext::elm::SmallListItem("Add to favorites", actionGlyph(Action::AddToFavorite)));
             top_list->addItem(new tslext::elm::SmallListItem("Remove from favorites", actionGlyph(Action::RemoveFromFavorite)));
             top_list->addItem(new tslext::elm::SmallListItem("Reset active amiibo", actionGlyph(Action::ResetActiveAmiibo)));
@@ -594,7 +594,7 @@ class AmiiboGui : public tsl::Gui {
 
         virtual tsl::elm::Element *createUI() override {
             // View frame with 2 section
-            root_frame = new tslext::elm::DoubleSectionOverlayFrame("Emuiibo (" + actionGlyph(Action::Help) + " help)", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::same, true);
+            root_frame = new tslext::elm::DoubleSectionOverlayFrame("emuiibo", emuiibo->getEmuiiboVersionString(), tslext::SectionsLayout::same, true);
 
             // Top and bottom containers
             top_list = new tsl::elm::List();
@@ -612,6 +612,7 @@ class AmiiboGui : public tsl::Gui {
                 bottom_list->addItem(createRootElement());
                 bottom_list->addItem(createFavoritesElement());
                 bottom_list->addItem(createResetElement());
+                bottom_list->addItem(createHelpElement());
             }
             else {
                 std::list<std::filesystem::path> dir_paths;
@@ -649,7 +650,7 @@ class AmiiboGui : public tsl::Gui {
                 }
             }
 
-            // Emuiibo emulation status
+            // emuiibo emulation status
             toggle_item = new tslext::elm::SmallToggleListItem("Emulation status " + actionGlyph(Action::DisableEmulation) + " " + actionGlyph(Action::EnableEmulation), false, "on", "off");
             toggle_item->setClickListener([&](u64 keys) {
                 if(keys & Action::ActivateItem){
@@ -677,7 +678,7 @@ class AmiiboGui : public tsl::Gui {
 
             // Main key bindings
             root_frame->setClickListener([&](u64 keys) {
-                if(keys & Action::Help) {
+                if(keys & Action::ShowHelp) {
                     tsl::changeTo<AmiiboGuiHelp>(emuiibo);
                     return true;
                 }
@@ -766,6 +767,14 @@ class AmiiboGui : public tsl::Gui {
             item->setActionListener([this](auto&) {
                 emuiibo->ResetActiveVirtualAmiibo();
                 update();
+            });
+            return item;
+        }
+
+        tsl::elm::Element* createHelpElement() {
+            auto item = new ActionListElement(emuiibo, "Help " + iconGlyph(Icon::Help));
+            item->setActionListener([this](auto&) {
+                tsl::changeTo<AmiiboGuiHelp>(emuiibo);;
             });
             return item;
         }
