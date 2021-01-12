@@ -29,7 +29,7 @@ For more detailed information of how to use emuiibo, check [the usage wiki](Usag
 
 - However, categories are supported by placing amiibos inside sub-directories (only inside a directory, like 3DS menu categories inside categories are not supported) - for instance: `sd:/emuiibo/amiibo/SSBU/Yoshi` would be a `Yoshi` amiibo inside `SSBU` category.
 
-- A virtual amiibo is detected by emuiibo based on two aspects: a `amiibo.json` and a `amiibo.flag` fioe must exist inside the virtual amiibo's folder mentioned above. If you would like to disable a virtual amiibo from being recognised by emuiibo, just remove the flag file, and create it again to enable it.
+- A virtual amiibo is detected by emuiibo based on two aspects: a `amiibo.json` and a `amiibo.flag` file must exist inside the virtual amiibo's folder mentioned above. If you would like to disable a virtual amiibo from being recognised by emuiibo, just remove the flag file, and create it again to enable it.
 
 - Every time the console is booted, emuiibo saves all the miis inside the console to the SD card. Format is `sd:/emuiibo/miis/<index> - <name>/mii-charinfo.bin`.
 
