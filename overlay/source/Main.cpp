@@ -328,8 +328,8 @@ class MainGui : public tsl::Gui {
                     }
                     this->Refresh();
                 });
-                
-                select_item->setClickListener([](u64 keys) { 
+
+                select_item->setClickListener([](u64 keys) {
                     if(keys & HidNpadButton_A) {
                         tsl::changeTo<CategoryList>();
                         g_NeedsUpdateMainGui = true;
