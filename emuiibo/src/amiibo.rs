@@ -6,8 +6,8 @@ use nx::fs;
 use nx::util;
 use nx::rand;
 use nx::rand::RandomGenerator;
-use nx::ipc::sf::mii;
-use nx::ipc::sf::nfp;
+use nx::ipc::cmif::sf::mii;
+use nx::ipc::cmif::sf::nfp;
 
 use crate::fsext;
 use crate::miiext;

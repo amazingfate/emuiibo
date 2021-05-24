@@ -234,7 +234,7 @@ namespace emutool
         {
             try
             {
-                string base_dir = null;
+                string base_dir = "";
                 if(!FtpSaveCheck.Checked)
                 {
                     // If we're saving normally and we're not using the last path, ask the user for the path

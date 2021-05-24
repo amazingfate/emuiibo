@@ -1,21 +1,22 @@
 use nx::result::*;
 use nx::results;
 use nx::mem;
-use nx::ipc::sf;
-use nx::ipc::server;
-use nx::ipc::sf::applet;
-use nx::ipc::sf::nfp;
-use nx::ipc::sf::nfp::IUser;
-use nx::ipc::sf::nfp::IUserManager;
-use nx::ipc::sf::sm;
+use nx::ipc::cmif::sf;
+use nx::ipc::cmif::server;
+use nx::ipc::cmif::sf::applet;
+use nx::ipc::cmif::sf::nfp;
+use nx::ipc::cmif::sf::nfp::IUser;
+use nx::ipc::cmif::sf::nfp::IUserManager;
+use nx::ipc::tipc::sf::sm;
 use nx::wait;
 use nx::sync;
-use nx::service::hid;
+use nx::service::cmif::hid;
 use nx::input;
 use nx::thread;
 
 use crate::area;
 use crate::emu;
+use crate::logger;
 
 pub struct User {
     session: sf::Session,
@@ -99,31 +100,31 @@ impl sf::IObject for User {
 
     fn get_command_table(&self) -> sf::CommandMetadataTable {
         vec! [
-            ipc_interface_make_command_meta!(initialize: 0),
-            ipc_interface_make_command_meta!(finalize: 1),
-            ipc_interface_make_command_meta!(list_devices: 2),
-            ipc_interface_make_command_meta!(start_detection: 3),
-            ipc_interface_make_command_meta!(stop_detection: 4),
-            ipc_interface_make_command_meta!(mount: 5),
-            ipc_interface_make_command_meta!(unmount: 6),
-            ipc_interface_make_command_meta!(open_application_area: 7),
-            ipc_interface_make_command_meta!(get_application_area: 8),
-            ipc_interface_make_command_meta!(set_application_area: 9),
-            ipc_interface_make_command_meta!(flush: 10),
-            ipc_interface_make_command_meta!(restore: 11),
-            ipc_interface_make_command_meta!(create_application_area: 12),
-            ipc_interface_make_command_meta!(get_tag_info: 13),
-            ipc_interface_make_command_meta!(get_register_info: 14),
-            ipc_interface_make_command_meta!(get_common_info: 15),
-            ipc_interface_make_command_meta!(get_model_info: 16),
-            ipc_interface_make_command_meta!(attach_activate_event: 17),
-            ipc_interface_make_command_meta!(attach_deactivate_event: 18),
-            ipc_interface_make_command_meta!(get_state: 19),
-            ipc_interface_make_command_meta!(get_device_state: 20),
-            ipc_interface_make_command_meta!(get_npad_id: 21),
-            ipc_interface_make_command_meta!(get_application_area_size: 22),
-            ipc_interface_make_command_meta!(attach_availability_change_event: 23, [(3, 0, 0) =>]),
-            ipc_interface_make_command_meta!(recreate_application_area: 24, [(3, 0, 0) =>])
+            ipc_cmif_interface_make_command_meta!(initialize: 0),
+            ipc_cmif_interface_make_command_meta!(finalize: 1),
+            ipc_cmif_interface_make_command_meta!(list_devices: 2),
+            ipc_cmif_interface_make_command_meta!(start_detection: 3),
+            ipc_cmif_interface_make_command_meta!(stop_detection: 4),
+            ipc_cmif_interface_make_command_meta!(mount: 5),
+            ipc_cmif_interface_make_command_meta!(unmount: 6),
+            ipc_cmif_interface_make_command_meta!(open_application_area: 7),
+            ipc_cmif_interface_make_command_meta!(get_application_area: 8),
+            ipc_cmif_interface_make_command_meta!(set_application_area: 9),
+            ipc_cmif_interface_make_command_meta!(flush: 10),
+            ipc_cmif_interface_make_command_meta!(restore: 11),
+            ipc_cmif_interface_make_command_meta!(create_application_area: 12),
+            ipc_cmif_interface_make_command_meta!(get_tag_info: 13),
+            ipc_cmif_interface_make_command_meta!(get_register_info: 14),
+            ipc_cmif_interface_make_command_meta!(get_common_info: 15),
+            ipc_cmif_interface_make_command_meta!(get_model_info: 16),
+            ipc_cmif_interface_make_command_meta!(attach_activate_event: 17),
+            ipc_cmif_interface_make_command_meta!(attach_deactivate_event: 18),
+            ipc_cmif_interface_make_command_meta!(get_state: 19),
+            ipc_cmif_interface_make_command_meta!(get_device_state: 20),
+            ipc_cmif_interface_make_command_meta!(get_npad_id: 21),
+            ipc_cmif_interface_make_command_meta!(get_application_area_size: 22),
+            ipc_cmif_interface_make_command_meta!(attach_availability_change_event: 23, [(3, 0, 0) =>]),
+            ipc_cmif_interface_make_command_meta!(recreate_application_area: 24, [(3, 0, 0) =>])
         ]
     }
 }
@@ -132,6 +133,7 @@ impl IUser for User {
     fn initialize(&mut self, _aruid: applet::AppletResourceUserId, _process_id: sf::ProcessId, _mcu_data: sf::InMapAliasBuffer) -> Result<()> {
         // TODO: make use of mcu data?
         result_return_unless!(self.is_state(nfp::State::NonInitialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("Initialize");
 
         self.state.set(nfp::State::Initialized);
         self.device_state.set(nfp::DeviceState::Initialized);
@@ -147,7 +149,8 @@ impl IUser for User {
 
     fn finalize(&mut self) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("Finalize");
+
         self.state.set(nfp::State::NonInitialized);
         self.device_state.set(nfp::DeviceState::Finalized);
         Ok(())
@@ -156,7 +159,8 @@ impl IUser for User {
     fn list_devices(&mut self, out_devices: sf::OutPointerBuffer) -> Result<u32> {
         let mut devices: &mut [nfp::DeviceHandle] = out_devices.get_mut_slice();
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("ListDevices");
+
         // Send a single fake device handle
         devices[0].npad_id = match self.input_ctx.is_controller_connected(hid::ControllerId::Player1) {
             true => hid::ControllerId::Player1,
@@ -168,13 +172,15 @@ impl IUser for User {
     fn start_detection(&mut self, _device_handle: nfp::DeviceHandle) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::Initialized) || self.is_device_state(nfp::DeviceState::TagRemoved), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("StartDetection");
+
         self.device_state.set(nfp::DeviceState::SearchingForTag);
         Ok(())
     }
 
     fn stop_detection(&mut self, _device_handle: nfp::DeviceHandle) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("StopDetection");
 
         self.device_state.set(nfp::DeviceState::Initialized);
         Ok(())
@@ -182,6 +188,7 @@ impl IUser for User {
 
     fn mount(&mut self, _device_handle: nfp::DeviceHandle, _device_type: nfp::DeviceType, _mount_target: nfp::MountTarget) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("Mount");
         
         self.device_state.set(nfp::DeviceState::TagMounted);
         Ok(())
@@ -189,6 +196,7 @@ impl IUser for User {
 
     fn unmount(&mut self, _device_handle: nfp::DeviceHandle) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("Unmount");
         
         self.device_state.set(nfp::DeviceState::TagFound);
         Ok(())
@@ -197,6 +205,7 @@ impl IUser for User {
     fn open_application_area(&mut self, _device_handle: nfp::DeviceHandle, access_id: nfp::AccessId) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
+        logger::log_line(format!("OpenApplicationArea - access ID: {:#X}", access_id));
 
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
@@ -212,6 +221,7 @@ impl IUser for User {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.current_opened_area.exists(), results::nfp::ResultAreaNeedsToBeCreated);
+        logger::log_line_str("GetApplicationArea");
 
         let area_size = self.current_opened_area.get_size()?;
         let size = core::cmp::min(area_size, out_data.size);
@@ -224,6 +234,7 @@ impl IUser for User {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.current_opened_area.exists(), results::nfp::ResultAreaNeedsToBeCreated);
+        logger::log_line_str("SetApplicationArea");
 
         let area_size = self.current_opened_area.get_size()?;
         let size = core::cmp::min(area_size, data.size);
@@ -236,12 +247,14 @@ impl IUser for User {
 
     fn flush(&mut self, _device_handle: nfp::DeviceHandle) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("Flush");
 
         Ok(())
     }
 
     fn restore(&mut self, _device_handle: nfp::DeviceHandle) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("Restore");
 
         Ok(())
     }
@@ -249,6 +262,7 @@ impl IUser for User {
     fn create_application_area(&mut self, _device_handle: nfp::DeviceHandle, access_id: nfp::AccessId, data: sf::InMapAliasBuffer) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("CreateApplicationArea");
 
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
@@ -264,7 +278,8 @@ impl IUser for User {
     fn get_tag_info(&mut self, _device_handle: nfp::DeviceHandle, mut out_tag_info: sf::OutFixedPointerBuffer<nfp::TagInfo>) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagFound) || self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("GetTagInfo");
+
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
 
@@ -276,7 +291,8 @@ impl IUser for User {
     fn get_register_info(&mut self, _device_handle: nfp::DeviceHandle, mut out_register_info: sf::OutFixedPointerBuffer<nfp::RegisterInfo>) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("GetRegisterInfo");
+
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
 
@@ -288,7 +304,8 @@ impl IUser for User {
     fn get_common_info(&mut self, _device_handle: nfp::DeviceHandle, mut out_common_info: sf::OutFixedPointerBuffer<nfp::CommonInfo>) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("GetCommonInfo");
+
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
 
@@ -300,7 +317,8 @@ impl IUser for User {
     fn get_model_info(&mut self, _device_handle: nfp::DeviceHandle, mut out_model_info: sf::OutFixedPointerBuffer<nfp::ModelInfo>) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("GetModelInfo");
+
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
 
@@ -311,26 +329,31 @@ impl IUser for User {
 
     fn attach_activate_event(&mut self, _device_handle: nfp::DeviceHandle) -> Result<sf::CopyHandle> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("AttachActivateEvent");
+
         Ok(sf::Handle::from(self.activate_event.client_handle))
     }
 
     fn attach_deactivate_event(&mut self, _device_handle: nfp::DeviceHandle) -> Result<sf::CopyHandle> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("AttachDeactivateEvent");
+
         Ok(sf::Handle::from(self.deactivate_event.client_handle))
     }
 
     fn get_state(&mut self) -> Result<nfp::State> {
+        logger::log_line_str("GetState");
         Ok(self.state.get_val())
     }
 
     fn get_device_state(&mut self, _device_handle: nfp::DeviceHandle) -> Result<nfp::DeviceState> {
+        logger::log_line_str("GetDeviceState");
         Ok(self.device_state.get_val())
     }
 
     fn get_npad_id(&mut self, device_handle: nfp::DeviceHandle) -> Result<u32> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("GetNpadId");
         
         Ok(device_handle.npad_id)
     }
@@ -339,6 +362,7 @@ impl IUser for User {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.current_opened_area.exists(), results::nfp::ResultAreaNeedsToBeCreated);
+        logger::log_line_str("GetApplicationAreaSize");
 
         let area_size = self.current_opened_area.get_size()?;
         Ok(area_size as u32)
@@ -346,13 +370,15 @@ impl IUser for User {
 
     fn attach_availability_change_event(&mut self) -> Result<sf::CopyHandle> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
-        
+        logger::log_line_str("AttachAvChangeEvent");
+
         Ok(sf::Handle::from(self.availability_change_event.client_handle))
     }
 
     fn recreate_application_area(&mut self, _device_handle: nfp::DeviceHandle, access_id: nfp::AccessId, data: sf::InMapAliasBuffer) -> Result<()> {
         result_return_unless!(self.is_state(nfp::State::Initialized), results::nfp::ResultDeviceNotFound);
         result_return_unless!(self.is_device_state(nfp::DeviceState::TagMounted), results::nfp::ResultDeviceNotFound);
+        logger::log_line_str("RecreateAppArea");
 
         let amiibo = emu::get_active_virtual_amiibo();
         result_return_unless!(amiibo.is_valid(), results::nfp::ResultDeviceNotFound);
@@ -376,7 +402,7 @@ impl sf::IObject for UserManager {
 
     fn get_command_table(&self) -> sf::CommandMetadataTable {
         vec! [
-            ipc_interface_make_command_meta!(create_user_interface: 0)
+            ipc_cmif_interface_make_command_meta!(create_user_interface: 0)
         ]
     }
 }

@@ -34,7 +34,7 @@ pub enum VirtualAmiiboStatus {
     Disconnected
 }
 
-pub const CURRENT_VERSION: Version = Version::from(0, 6, 1, false);
+pub const CURRENT_VERSION: Version = Version::from(0, 6, 3, false);
 
 static mut G_EMULATION_STATUS: sync::Locked<EmulationStatus> = sync::Locked::new(false, EmulationStatus::Off);
 static mut G_ACTIVE_VIRTUAL_AMIIBO_STATUS: sync::Locked<VirtualAmiiboStatus> = sync::Locked::new(false, VirtualAmiiboStatus::Invalid);

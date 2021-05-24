@@ -227,17 +227,17 @@ class PngImage {
 class EmuiiboState {
 
     private:
-        bool emuiibo_init_ok{false};
-        std::filesystem::path emuiibo_amiibo_dir;
-        emu::Version emuiibo_version;
-        std::filesystem::path active_amiibo_path;
-        emu::VirtualAmiiboData active_amiibo_data;
-        PngImage amiibo_image;
+        bool Initialized{false};
+        std::filesystem::path EmuiiboVirtualAmiiboDir;
+        emu::Version Version;
+        std::filesystem::path ActiveVirtualAmiiboPath;
+        emu::VirtualAmiiboData ActiveVirtualAmiiboData;
+        PngImage AmiiboImage;
         std::set<std::filesystem::path> favorites;
 
     public:
         bool isEmuiiboOk() const {
-            return emuiibo_init_ok;
+            return Initialized;
         }
 
         bool isCurrentApplicationIdIntercepted() const {
@@ -245,19 +245,19 @@ class EmuiiboState {
         }
 
         bool isActiveAmiiboValid() const {
-            return !active_amiibo_path.empty();
+            return !ActiveVirtualAmiiboPath.empty();
         }
 
         const emu::Version& getEmuiiboVersion() const {
-            return emuiibo_version;
+            return Version;
         }
 
         std::string getEmuiiboVersionString() const {
             if (!isEmuiiboOk()) {
                 return "emuiibo not found...";
             }
-            const auto& emuiibo_version = getEmuiiboVersion();
-            return std::to_string(emuiibo_version.major) + "." + std::to_string(emuiibo_version.minor) + "." + std::to_string(emuiibo_version.micro) + " (" + (emuiibo_version.dev_build ? "dev" : "release") + ")";
+            const auto& Version = getEmuiiboVersion();
+            return std::to_string(Version.major) + "." + std::to_string(Version.minor) + "." + std::to_string(Version.micro) + " (" + (Version.dev_build ? "dev" : "release") + ")";
         }
 
         emu::EmulationStatus getEmulationStatus() const {
@@ -265,11 +265,11 @@ class EmuiiboState {
         }
 
         std::string getEmuiiboVirtualAmiiboPath() const {
-            return emuiibo_amiibo_dir;
+            return EmuiiboVirtualAmiiboDir;
         }
 
         std::string getActiveVirtualAmiiboPath() const {
-            return active_amiibo_path;
+            return ActiveVirtualAmiiboPath;
         }
 
         emu::VirtualAmiiboStatus getActiveVirtualAmiiboStatus() const {
@@ -280,7 +280,7 @@ class EmuiiboState {
         }
 
         const emu::VirtualAmiiboData& getActiveVirtualAmiiboAmiiboData() const {
-            return active_amiibo_data;
+            return ActiveVirtualAmiiboData;
         }
 
         bool getVirtualAmiiboAmiiboData(const std::string& path, emu::VirtualAmiiboData& data) const {
@@ -288,18 +288,18 @@ class EmuiiboState {
         }
 
         const PngImage& image() const {
-            return amiibo_image;
+            return AmiiboImage;
         }
 
         void initEmuiibo() {
             tsl::hlp::doWithSmSession([this] {
                 if(emu::IsAvailable()) {
-                    emuiibo_init_ok = R_SUCCEEDED(emu::Initialize()) && R_SUCCEEDED(pmdmntInitialize()) && R_SUCCEEDED(pminfoInitialize());
-                    if(emuiibo_init_ok) {
-                        emuiibo_version = emu::GetVersion();
+                    Initialized = R_SUCCEEDED(emu::Initialize()) && R_SUCCEEDED(pmdmntInitialize()) && R_SUCCEEDED(pminfoInitialize());
+                    if(Initialized) {
+                        Version = emu::GetVersion();
                         char emuiibo_amiibo_dir_str[FS_MAX_PATH];
                         emu::GetVirtualAmiiboDirectory(emuiibo_amiibo_dir_str, FS_MAX_PATH);
-                        emuiibo_amiibo_dir = std::string(emuiibo_amiibo_dir_str);
+                        EmuiiboVirtualAmiiboDir = std::string(emuiibo_amiibo_dir_str);
                     }
                 }
             });
@@ -354,12 +354,12 @@ class EmuiiboState {
 
         void loadActiveAmiibo() {
             char active_amiibo_path_str[FS_MAX_PATH];
-            emu::GetActiveVirtualAmiibo(&active_amiibo_data, active_amiibo_path_str, FS_MAX_PATH);
-            active_amiibo_path = std::string(active_amiibo_path_str);
+            emu::GetActiveVirtualAmiibo(&ActiveVirtualAmiiboData, active_amiibo_path_str, FS_MAX_PATH);
+            ActiveVirtualAmiiboPath = std::string(active_amiibo_path_str);
 
-            amiibo_image.closeFile();
+            AmiiboImage.closeFile();
             if(isActiveAmiiboValid()) {
-                amiibo_image.openFile(active_amiibo_path / "amiibo.png", maxIconHeigth(), maxIconWidth());
+                AmiiboImage.openFile(ActiveVirtualAmiiboPath / "amiibo.png", maxIconHeigth(), maxIconWidth());
             }
         }
 
@@ -378,7 +378,7 @@ class EmuiiboState {
         void saveFavorites() {
             tsl::hlp::doWithSDCardHandle([this](){
                 std::ofstream file(std::filesystem::path{getEmuiiboVirtualAmiiboPath()} / favoritesFile(), std::ofstream::out | std::ofstream::trunc);
-                for (const auto path: favorites) {
+                for (const auto &path: favorites) {
                     file << path.lexically_relative(getEmuiiboVirtualAmiiboPath()).string() << std::endl;
                 }
             });
@@ -638,7 +638,7 @@ class AmiiboGui : public tsl::Gui {
                         }
                     });
                 }
-                for (const auto dir_path: dir_paths) {
+                for (const auto &dir_path: dir_paths) {
                     if (tsl::elm::Element* item = createAmiiboElement(dir_path)) {
                         bottom_list->addItem(item);
                         amiibo_count++;
