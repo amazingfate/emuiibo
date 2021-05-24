@@ -1,6 +1,6 @@
 use nx::result::*;
-use nx::ipc::sf;
-use nx::ipc::server;
+use nx::ipc::cmif::sf;
+use nx::ipc::cmif::server;
 use alloc::string::String;
 
 use crate::resultsext;
@@ -9,17 +9,17 @@ use crate::amiibo;
 use crate::fsext;
 
 pub trait IEmulationService {
-    ipc_interface_define_command!(get_version: () => (version: emu::Version));
-    ipc_interface_define_command!(get_virtual_amiibo_directory: (out_path: sf::OutMapAliasBuffer) => ());
-    ipc_interface_define_command!(get_emulation_status: () => (status: emu::EmulationStatus));
-    ipc_interface_define_command!(set_emulation_status: (status: emu::EmulationStatus) => ());
-    ipc_interface_define_command!(get_active_virtual_amiibo: (out_path: sf::OutMapAliasBuffer) => (virtual_amiibo: amiibo::VirtualAmiiboData));
-    ipc_interface_define_command!(set_active_virtual_amiibo: (path: sf::InMapAliasBuffer) => ());
-    ipc_interface_define_command!(reset_active_virtual_amiibo: () => ());
-    ipc_interface_define_command!(get_active_virtual_amiibo_status: () => (status: emu::VirtualAmiiboStatus));
-    ipc_interface_define_command!(set_active_virtual_amiibo_status: (status: emu::VirtualAmiiboStatus) => ());
-    ipc_interface_define_command!(is_application_id_intercepted: (application_id: u64) => (is_intercepted: bool));
-    ipc_interface_define_command!(try_parse_virtual_amiibo: (path: sf::InMapAliasBuffer) => (virtual_amiibo: amiibo::VirtualAmiiboData));
+    ipc_cmif_interface_define_command!(get_version: () => (version: emu::Version));
+    ipc_cmif_interface_define_command!(get_virtual_amiibo_directory: (out_path: sf::OutMapAliasBuffer) => ());
+    ipc_cmif_interface_define_command!(get_emulation_status: () => (status: emu::EmulationStatus));
+    ipc_cmif_interface_define_command!(set_emulation_status: (status: emu::EmulationStatus) => ());
+    ipc_cmif_interface_define_command!(get_active_virtual_amiibo: (out_path: sf::OutMapAliasBuffer) => (virtual_amiibo: amiibo::VirtualAmiiboData));
+    ipc_cmif_interface_define_command!(set_active_virtual_amiibo: (path: sf::InMapAliasBuffer) => ());
+    ipc_cmif_interface_define_command!(reset_active_virtual_amiibo: () => ());
+    ipc_cmif_interface_define_command!(get_active_virtual_amiibo_status: () => (status: emu::VirtualAmiiboStatus));
+    ipc_cmif_interface_define_command!(set_active_virtual_amiibo_status: (status: emu::VirtualAmiiboStatus) => ());
+    ipc_cmif_interface_define_command!(is_application_id_intercepted: (application_id: u64) => (is_intercepted: bool));
+    ipc_cmif_interface_define_command!(try_parse_virtual_amiibo: (path: sf::InMapAliasBuffer) => (virtual_amiibo: amiibo::VirtualAmiiboData));
 }
 
 pub struct EmulationService {
@@ -33,17 +33,17 @@ impl sf::IObject for EmulationService {
 
     fn get_command_table(&self) -> sf::CommandMetadataTable {
         vec! [
-            ipc_interface_make_command_meta!(get_version: 0),
-            ipc_interface_make_command_meta!(get_virtual_amiibo_directory: 1),
-            ipc_interface_make_command_meta!(get_emulation_status: 2),
-            ipc_interface_make_command_meta!(set_emulation_status: 3),
-            ipc_interface_make_command_meta!(get_active_virtual_amiibo: 4),
-            ipc_interface_make_command_meta!(set_active_virtual_amiibo: 5),
-            ipc_interface_make_command_meta!(reset_active_virtual_amiibo: 6),
-            ipc_interface_make_command_meta!(get_active_virtual_amiibo_status: 7),
-            ipc_interface_make_command_meta!(set_active_virtual_amiibo_status: 8),
-            ipc_interface_make_command_meta!(is_application_id_intercepted: 9),
-            ipc_interface_make_command_meta!(try_parse_virtual_amiibo: 10)
+            ipc_cmif_interface_make_command_meta!(get_version: 0),
+            ipc_cmif_interface_make_command_meta!(get_virtual_amiibo_directory: 1),
+            ipc_cmif_interface_make_command_meta!(get_emulation_status: 2),
+            ipc_cmif_interface_make_command_meta!(set_emulation_status: 3),
+            ipc_cmif_interface_make_command_meta!(get_active_virtual_amiibo: 4),
+            ipc_cmif_interface_make_command_meta!(set_active_virtual_amiibo: 5),
+            ipc_cmif_interface_make_command_meta!(reset_active_virtual_amiibo: 6),
+            ipc_cmif_interface_make_command_meta!(get_active_virtual_amiibo_status: 7),
+            ipc_cmif_interface_make_command_meta!(set_active_virtual_amiibo_status: 8),
+            ipc_cmif_interface_make_command_meta!(is_application_id_intercepted: 9),
+            ipc_cmif_interface_make_command_meta!(try_parse_virtual_amiibo: 10)
         ]
     }
 }

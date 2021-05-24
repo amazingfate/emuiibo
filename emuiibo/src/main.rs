@@ -16,7 +16,7 @@ use nx::util;
 use nx::thread;
 use nx::diag::assert;
 use nx::diag::log;
-use nx::ipc::server;
+use nx::ipc::cmif::server;
 use nx::fs;
 use core::panic;
 
@@ -27,6 +27,7 @@ mod ipc;
 mod emu;
 mod amiibo;
 mod area;
+mod logger;
 
 const STACK_HEAP_SIZE: usize = 0x4000;
 static mut STACK_HEAP: [u8; STACK_HEAP_SIZE] = [0; STACK_HEAP_SIZE];
@@ -49,8 +50,9 @@ pub fn main() -> Result<()> {
     fsext::ensure_directories();
     miiext::initialize()?;
     miiext::export_miis()?;
+    logger::initialize();
 
-    let mut manager = Manager::new();
+    let mut manager = Manager::new()?;
     manager.register_mitm_service_server::<ipc::nfp::UserManager>()?;
     manager.register_service_server::<ipc::emu::EmulationService>()?;
     manager.loop_process()?;

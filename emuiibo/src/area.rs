@@ -1,6 +1,6 @@
 use nx::result::*;
 use nx::fs;
-use nx::ipc::sf::nfp;
+use nx::ipc::cmif::sf::nfp;
 use alloc::string::String;
 use crate::amiibo;
 use crate::fsext;
@@ -42,7 +42,7 @@ impl ApplicationArea {
     }
 
     pub fn write(&self, data: *const u8, data_size: usize) -> Result<()> {
-        let mut file = fs::open_file(self.area_file.clone(), fs::FileOpenOption::Create() | fs::FileOpenOption::Write() | fs::FileOpenOption::Append())?;
+        let mut file = fs::open_file(self.area_file.clone(), fs::FileOpenOption::Create() | fs::FileOpenOption::Write())?;
         file.write(data, data_size)?;
         Ok(())
     }

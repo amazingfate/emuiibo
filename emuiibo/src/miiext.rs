@@ -1,9 +1,9 @@
 use nx::result::*;
-use nx::ipc::sf;
+use nx::ipc::cmif::sf;
 use nx::service;
-use nx::service::mii;
-use nx::service::mii::IDatabaseService;
-use nx::service::mii::IStaticService;
+use nx::service::cmif::mii;
+use nx::service::cmif::mii::IDatabaseService;
+use nx::service::cmif::mii::IStaticService;
 use nx::mem;
 use nx::fs;
 use alloc::vec::Vec;
@@ -17,7 +17,7 @@ static mut G_INIT: bool = false;
 pub fn initialize() -> Result<()> {
     unsafe {
         if !G_INIT {
-            G_STATIC_SRV = service::new_service_object()?;
+            G_STATIC_SRV = service::cmif::new_service_object()?;
             G_DB_SRV = G_STATIC_SRV.get().get_database_service(mii::SpecialKeyCode::Normal)?.to::<mii::DatabaseService>();
             G_INIT = true;
         }

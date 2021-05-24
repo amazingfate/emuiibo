@@ -9,9 +9,11 @@
 1. [Usage](#usage)
 2. [Controlling emuiibo](#controlling-emuiibo)
 3. [Virtual amiibo creation](#virtual-amiibo-creation)
-4. [Important notes](#important-notes)
-5. [For developers](#for-developers)
-6. [Credits](#credits)
+4. [For developers](#for-developers)
+5. [Raw dumps and encryption](#raw-dumps-and-encryption)
+6. [Amiibo format](#amiibo-format)
+7. [License exemption](#license-exemption)
+8. [Credits](#credits)
 
 ## Usage
 
@@ -51,11 +53,23 @@ Emuiibo no longer accepts raw BIN dumps to emulate amiibos. Instead, you can use
 
 ## For developers
 
-emuiibo also hosts a custom service, `nfp:emu`, which can be used to control amiibo emulation by IPC commands.
+emuiibo hosts a custom service, also named `emuiibo`, which can be used to control amiibo emulation by IPC commands.
 
-NOTE: this service has completely changed for v0.5, so any kind of tool made to control emuiibo for lower versions should be updated, since it will definitely not work fine.
+The overlay's code can be a good example to see how to control emuiibo from IPC and C++.
 
-There are two examples for the usage of this services: `emuiibo-example`, which is a quick but useful CLI emuiibo manager, and the overlay we provide.
+## Raw dumps and encryption
+
+When using raw dumps, emuiibo doesn't save everything they have onto the new format, since some bits are encrypted. This is, for instance, why 20-heart Wolf Link amiibo dumps won't work with emuiibo, since the amiibo's app-area, where the console/game saves amiibo savedata, is an encrypted field, and it contains the information BOTW needs in order to recognize the feature.
+
+You can manually extract it, using [amiitool](https://github.com/socram8888/amiitool). You'll need to find the retail amiibo key to use it.
+
+Running the following will decrypt the raw dump:
+
+```cmd
+amiitool -d -k <key-file-bin> -i <amiibo-raw-dump-bin> -o <out-decrypted-bin>
+```
+
+You'll have the decrypted app-area section at offset 0xDC on the decrypted dump, of length 0xD8. By saving that as `<game-access-id>.bin` inside the `/areas` folder of a virtual amiibo being used by emuiibo, you can actually import the dump's savedata, which would allow for such things to work. Check below for a list of per-game access IDs.
 
 ## Amiibo format
 
@@ -96,6 +110,10 @@ An access ID is a unique ID/number each game has for amiibo savedata, used to ch
 - Link's Awakening: 0x3B440400
 
 **NOTE**: if anyone is willing to make savedata editors for this amiibo saves, I'm pretty sure it would be extremely helpful for many users.
+
+## License exemption
+
+- The Ryujinx project/team is exempt from GPLv2 licensing, and may make use of emuiibo's code licensing it under their current license.
 
 ## Credits
 
