@@ -1,100 +1,100 @@
 {
     "metadata": {
         "base": "en",
-        "language": "es",
-        "created": "2021-4-18",
-        "author": "Impeeza"
+        "language": "cn",
+        "created": "2021-10-08",
+        "author": "amazingfate"
     },
     "strings": [
         {
             "context": "",
             "source": "Active virtual amiibo: ",
-            "translation": "Аmiibo virtual activo: "
+            "translation": "激活虚拟amiibo: "
         },
         {
             "context": "",
             "source": "No active virtual amiibo",
-            "translation": "No hay amiibo virtual activo"
+            "translation": "没有激活的虚拟amiibo"
         },
         {
             "context": "",
             "source": "emuiibo was not accessed.",
-            "translation": "emuiibo no pudo ser accedido."
+            "translation": "emuiibo不可用."
         },
         {
             "context": "",
             "source": "Emulation: ",
-            "translation": "Emulación: "
+            "translation": "模拟: "
         },
         {
             "context": "",
             "source": "on",
-            "translation": "Encendido"
+            "translation": "开启"
         },
         {
             "context": "",
             "source": "No active virtual amiibo.",
-            "translation": "No se ha seleccionado un amiibo virtual."
+            "translation": "没有激活的虚拟amiibo."
         },
         {
             "context": "",
             "source": "Virtual amiibo: ",
-            "translation": "Amiibo virtual: "
+            "translation": "虚拟amiibo: "
         },
         {
             "context": "",
             "source": " (connected - select to disconnect)",
-            "translation": " (Conectado - Selecciónelo para desconectarlo)"
+            "translation": " (已连接 - 选择以断开连接)"
         },
         {
             "context": "",
             "source": " (disconnected - select to connect)",
-            "translation": " (Desconectado - Selecciónelo para conectarlo)"
+            "translation": " (连接已断开 - 选择以连接)"
         },
         {
             "context": "",
             "source": "Current game is being intercepted by emuiibo.",
-            "translation": "Emuiibo está interceptando el juego actual."
+            "translation": "当前游戏emuiibo已生效."
         },
         {
             "context": "",
             "source": "Current game is not being intercepted.",
-            "translation": "Emuiibo NO está interceptando el juego actual."
+            "translation": "当前游戏emuiibo未生效."
         },
         {
             "context": "",
             "source": "off",
-            "translation": "Apagado"
+            "translation": "关闭"
         },
         {
             "context": "",
             "source": "Available virtual amiibos",
-            "translation": "Virtual amiibos disponibles"
+            "translation": "可用的虚拟amiibo"
         },
         {
             "context": "",
             "source": "Available categories",
-            "translation": "Categorías disponibles"
+            "translation": "可用的分类"
         },
         {
             "context": "",
             "source": "Off",
-            "translation": "Apagado"
+            "translation": "关闭"
         },
         {
             "context": "",
             "source": "On",
-            "translation": "Encendido"
+            "translation": "开启"
         },
         {
             "context": "",
             "source": "View amiibo",
-            "translation": "Ver amiibo"
+            "translation": "查看amiibo"
         },
         {
             "context": "",
             "source": "Manage emulation (on / off)",
-            "translation": "Encender/Apagar emulación"
+            "translation": "管理amiibo模拟 (开启 / 关闭)"
         }
     ]
 }

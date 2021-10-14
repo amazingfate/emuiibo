@@ -193,10 +193,8 @@ def check_language(language):
         raise Exception("Language code '%s' is wrong. Allowed: %s" % (language, ava_lang))
 
 
-def update(parser):
-    language = parser.language
+def updateOne(language, remove_unused):
     check_language(language)
-    remove_unused = parser.remove_unused
     used_keys = load_sources(language)
     (given_keys, metadata) = load_translation(language)
     result_keys = Translation(language)
@@ -204,6 +202,22 @@ def update(parser):
     result_keys.merge(given_keys, remove_unused)
     save_translation(language, result_keys, metadata)
     print(result_keys)
+
+
+def update(parser):
+    language = parser.language
+    remove_unused = parser.remove_unused
+    if language is not "*":
+        updateOne(language, remove_unused)
+        return
+
+    base_path = PATH + '/../emuiibo/'
+    files = [f for f in os.listdir(base_path) if os.path.isfile(os.path.join(base_path, f))]
+    print('Detected: %s' % (files))
+    for language in files:
+        language = re.sub('lng_', '', language)
+        language = re.sub('.json', '', language)
+        updateOne(language, remove_unused)
 
 
 if __name__ == '__main__':
